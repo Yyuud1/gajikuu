@@ -277,6 +277,8 @@ body.is-loading{overflow:hidden}
 .unit-action:disabled{opacity:.5;cursor:wait;box-shadow:none}
 @media(max-width:480px){.unit-actions{gap:8px}.unit-action{padding:10px 12px;font-size:13px}}
 @media(prefers-reduced-motion:reduce){.unit-action{transition:none}.unit-action:active:not(:disabled){transform:none}}
+
+.merge-columns{padding:10px 12px;border:1px solid #d7e7e0;border-radius:12px;background:#f7fbf9}.merge-columns summary{cursor:pointer;font-weight:600;font-size:14px;color:#356a58}.merge-columns>div{display:grid;gap:9px;margin-top:12px}.merge-columns label{display:flex!important;align-items:flex-start;gap:9px;font-weight:400!important;overflow-wrap:anywhere}.merge-columns input[type=checkbox]{width:17px!important;min-width:17px;height:17px!important;margin:2px 0 0;accent-color:#4b9c82}
 </style>
 </head>
 <body class="is-loading">
@@ -601,6 +603,11 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
 
   const destinationAccount=value=>{const text=String(value??'').trim().replace(/^[’‘']/, '').replace(/^(?:NO\.?\s*)?REK(?:ENING)?[.\s:]+/i,'').replace(/\s/g,'').toUpperCase();return /^(?:\d{6,18}|IDR\d{6,18})$/.test(text)?text:'';};
   let DEPARTMENT_SLOTS=[1,5,6,7,10,11];
+  function deductionColumns(s){return s.column<0?[]:[s.column,...(s.additionalColumns||[])];}
+  function deductionAmount(row,s,rounded=false){
+    const value=deductionColumns(s).reduce((sum,c)=>{const n=cents(row[c]);return sum+(rounded&&s.rounding==='rupiah'?Math.round(n/100)*100:n);},0);
+    if(!Number.isSafeInteger(value))throw new Error('Jumlah gabungan potongan terlalu besar.');return value;
+  }
   function monthlyContext(source,template,roundBPJS=true){
     const entries=bendDataRows(source),bm=source.map,headers=Array.from({length:Math.max(...source.rows.map(r=>r.length))},(_,c)=>source.rows.slice(Math.max(0,bm.header),entries[0].index).map(r=>r[c]).filter(v=>v!=null&&v!=='').join(' ')),width=source.rows.reduce((n,r)=>Math.max(n,r.length),0);
     const identity=new Set(['name','account','gross','total','net','number'].map(k=>bm[k]).filter(c=>c>=0));
@@ -615,14 +622,15 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
     }
     const usedColumns=new Set();
     const slots=DEPARTMENT_SLOTS.map(slot=>{
-      const field=BEND_FIELDS.find(f=>f.slot===slot), templateName=String(template.rows[2]?.[slot+6]||SLOT_NAMES[slot]||'Potongan '+(slot+1)).trim();
+      const templateName=String(template.rows[2]?.[slot+6]||'POT '+(slot+1)).trim();
       const dest=destinationAccount(template.rows[3]?.[slot+6]);
-      let matches=columns.filter(c=>!usedColumns.has(c.column)&&dest&&headerAccount(c.title)===dest);
-      if(!matches.length)matches=columns.filter(c=>!usedColumns.has(c.column)&&deductionKey(c.title)===deductionKey(templateName));
-      if(!matches.length&&currentUnit.id==='disdik'&&field)matches=columns.filter(c=>!usedColumns.has(c.column)&&c.role===field.key);
-      const column=matches.length===1?matches[0]:null;if(column)usedColumns.add(column.column);
+      const uniqueDest=dest&&readMaster(template).filter(s=>s.destination===dest).length===1;
+      let matches=uniqueDest?columns.filter(c=>!usedColumns.has(c.column)&&headerAccount(c.title)===dest):[];
+      if(!matches.length&&(!dest||uniqueDest))matches=columns.filter(c=>!usedColumns.has(c.column)&&deductionKey(c.title)===deductionKey(templateName));
+      const grouped=uniqueDest&&matches.length>1&&matches.every(c=>headerAccount(c.title)===dest);
+      const column=matches.length===1||grouped?matches[0]:null,additionalColumns=grouped?matches.slice(1).map(c=>c.column):[];if(column){usedColumns.add(column.column);additionalColumns.forEach(c=>usedColumns.add(c));}
       const headerDest=headerAccount(column?.title),conflict=!!(dest&&headerDest&&dest!==headerDest);
-      return {slot,name:column?column.title.replace(/\s*\(.*?\)/g,'').trim():templateName,column:column?.column??-1,destination:conflict?'':dest||headerDest,kind:column?.role==='bpjs'?'bpjs':'other',rounding:column?.role==='bpjs'&&roundBPJS?'rupiah':'none',absentConfirmed:false,conflict:conflict?'Rekening berbeda: bendahara '+headerDest+' · file kerja '+dest+'. Pastikan rekening tujuan.':''};
+      return {slot,name:templateName,additionalColumns,column:column?.column??-1,destination:dest,kind:column?.role==='bpjs'&&matches.every(c=>c.role==='bpjs')?'bpjs':'other',rounding:column?.role==='bpjs'&&matches.every(c=>c.role==='bpjs')&&roundBPJS?'rupiah':'none',absentConfirmed:false,conflict:conflict?'Rekening berbeda: bendahara '+headerDest+' · file kerja '+dest+'. Pastikan rekening tujuan.':''};
     });
     return {source,template,entries,columns,slots,period:parsePeriod(source.rows,Math.max(7,bm.header+1))};
   }
@@ -633,21 +641,27 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
     for(const value of input.slots){
       if(!DEPARTMENT_SLOTS.includes(value.slot)||usedSlots.has(value.slot))throw new Error('Slot potongan dinas harus unik. Slot bank tidak boleh digunakan.');
       usedSlots.add(value.slot);
-      const name=String(value.name??'').trim(),destination=String(value.destination??'').trim();
+      const master=readMaster(context.template)[value.slot],name=master.name,destination=master.destination;
+      if(value.name!==name||value.destination!==destination)throw new Error('Nama dan rekening POT '+(value.slot+1)+' harus mengikuti file kerja.');
       if(!name||name.length>80)throw new Error('Isi nama potongan POT '+(value.slot+1)+' (maksimal 80 karakter).');
       if(!['none','rupiah'].includes(value.rounding)||!['bpjs','other'].includes(value.kind))throw new Error('Aturan pembulatan '+name+' belum valid.');
-      if(value.rounding==='rupiah'&&(value.kind!=='bpjs'||!/^BPJS/.test(normalizeHeader(name))&&context.columns.find(c=>c.column===value.column)?.role!=='bpjs'))throw new Error('Pembulatan BPJS hanya boleh diterapkan pada potongan bernama BPJS.');
-      const item=context.columns.find(c=>c.column===value.column);
+      if(value.additionalColumns!==undefined&&!Array.isArray(value.additionalColumns))throw new Error('Daftar kolom gabungan tidak valid.');
+      if(value.column===-1&&(value.additionalColumns||[]).length)throw new Error('Pilih kolom utama sebelum menggabungkan kolom.');
+      const selected=deductionColumns(value),items=selected.map(c=>context.columns.find(item=>item.column===c));
       if(value.column===-1){if(!value.absentConfirmed)throw new Error('Konfirmasi bahwa '+name+' tidak dipotong bulan ini.');}
       else{
-        if(!Number.isInteger(value.column)||!item)throw new Error('Pilih kolom sumber yang valid untuk '+name+'.');
-        if(usedColumns.has(value.column))throw new Error('Kolom '+item.title+' dipakai pada dua slot. Pilih satu slot saja.');
-        usedColumns.add(value.column);
-        if(item.invalid)throw new Error('Kolom '+item.title+' berisi nominal tidak valid atau negatif. Periksa kolom yang dipilih.');
-        if(item.nonzero&&!destinationAccount(destination))throw new Error('Isi rekening tujuan yang valid untuk '+name+'.');
+        if(!selected.length||selected.some(c=>!Number.isInteger(c)||c<0)||items.some(item=>!item))throw new Error('Pilih kolom sumber yang valid untuk '+name+'.');
+        if(value.rounding==='rupiah'&&(value.kind!=='bpjs'||items.some(item=>item.role!=='bpjs')))throw new Error('Pembulatan BPJS hanya untuk kolom BPJS; gabungan kolom lain memakai tanpa pembulatan.');
+        for(const item of items){
+          if(usedColumns.has(item.column))throw new Error('Kolom '+item.title+' dipakai lebih dari sekali. Satu kolom hanya boleh masuk satu POT.');
+          usedColumns.add(item.column);
+          if(item.invalid)throw new Error('Kolom '+item.title+' berisi nominal tidak valid atau negatif. Periksa kolom yang dipilih.');
+          if(item.nonzero&&!destinationAccount(destination))throw new Error('Rekening POT '+(value.slot+1)+' kosong/tidak valid pada master. Perbaiki file kerja sesuai T24 lalu unggah ulang.');
+          if(headerAccount(item.title)&&headerAccount(item.title)!==destination&&!value.accountMismatchConfirmed)throw new Error('Rekening sumber '+item.title+' berbeda dari master POT '+(value.slot+1)+'. Periksa dan centang konfirmasi perbedaan.');
+        }
       }
       if(destination&&!destinationAccount(destination))throw new Error('Rekening tujuan '+name+' harus berupa 6–18 angka atau akun IDR yang valid.');
-      slots.push({slot:value.slot,name,column:value.column,destination:destination?destinationAccount(destination):'',kind:value.kind,rounding:value.column<0?'none':value.rounding,absentConfirmed:value.column<0&&!!value.absentConfirmed});
+      slots.push({accountMismatchConfirmed:!!value.accountMismatchConfirmed,slot:value.slot,name,column:value.column,additionalColumns:(value.additionalColumns||[]).slice(),destination:destination?destinationAccount(destination):'',kind:value.kind,rounding:value.column<0?'none':value.rounding,absentConfirmed:value.column<0&&!!value.absentConfirmed});
     }
     const ignored=[];
     for(const col of context.columns){
@@ -663,7 +677,7 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
     const totals=config.slots.map(s=>({slot:s.slot,source:0,result:0}));let discrepancies=0;
     for(const {row:r} of context.entries){
       let total=0;
-      config.slots.forEach((s,i)=>{const v=s.column<0?0:cents(r[s.column]);total+=v;totals[i].source+=v;totals[i].result+=s.rounding==='rupiah'?Math.round(v/100)*100:v;});
+      config.slots.forEach((s,i)=>{const v=deductionAmount(r,s);total+=v;totals[i].source+=v;totals[i].result+=deductionAmount(r,s,true);});
       const m=context.source.map;
       if((m.total>=0&&(r[m.total]==null||r[m.total]===''||cents(r[m.total])!==total))||r[m.net]==null||r[m.net]===''||cents(r[m.net])!==cents(r[m.gross])-total)discrepancies++;
     }
@@ -672,7 +686,7 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
   function appendMonthlySheet(wb,model){
     if(!model.monthlyConfig)return;
     const rows=[['PENGATURAN POTONGAN '+model.unit.short],['Periode',model.period?MONTHS[model.period.month]+' '+model.period.year:'Sesuai pilihan aplikasi'],['Dikonfirmasi',model.monthlyConfig.confirmedAt],['Catatan','Rekening tujuan ini harus sesuai pengaturan PAYR. CSV berisi nominal per POT.'],[],['Slot','Nama potongan','Kolom sumber','Rekening tujuan','Pembulatan','Status','Total sumber (Rp)','Total hasil (Rp)']];
-    for(const s of model.monthlyConfig.slots){const total=model.rows.reduce((a,r)=>a+r.sourceDept[s.slot],0),result=model.rows.reduce((a,r)=>a+r.pot[s.slot],0);rows.push(['POT '+(s.slot+1),s.name,s.column<0?'Tidak ada':XLSX.utils.encode_col(s.column)+' · '+s.sourceTitle,String(s.destination),s.rounding==='rupiah'?'BPJS ke rupiah penuh':'Tanpa pembulatan',s.column<0?'Tidak dipotong — dikonfirmasi':'Kolom dipetakan',total/100,result/100]);}
+    for(const s of model.monthlyConfig.slots){const total=model.rows.reduce((a,r)=>a+r.sourceDept[s.slot],0),result=model.rows.reduce((a,r)=>a+r.pot[s.slot],0);rows.push(['POT '+(s.slot+1),s.name,s.column<0?'Tidak ada':s.sourceTitle,String(s.destination),s.rounding==='rupiah'?'BPJS per kolom ke rupiah penuh':'Tanpa pembulatan',s.column<0?'Tidak dipotong — dikonfirmasi':'Kolom dipetakan',total/100,result/100]);}
     if(model.monthlyConfig.ignored.length){rows.push([],['Kolom bukan potongan','Alasan']);model.monthlyConfig.ignored.forEach(c=>rows.push([XLSX.utils.encode_col(c.column)+' · '+c.title,c.reason]));}
     const sheet=XLSX.utils.aoa_to_sheet(rows);sheet['!cols']=[{wch:12},{wch:30},{wch:35},{wch:24},{wch:28},{wch:35},{wch:23},{wch:23}];
     for(let r=6;r<12;r++)for(const c of [6,7]){const cell=sheet[XLSX.utils.encode_cell({r,c})];if(cell)cell.z='#,##0.00';}
@@ -685,12 +699,12 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
     const bendSheet=detectBendahara(docs.bendahara,options),bm=bendSheet.map;
     const bend=bendSheet.rows, template=detectPayrollSheet(docs.template,'template',options.sheetChoices?.template);
     if(!options.bankConfirmed){const e=new Error('Konfirmasi sumber bank bulan ini.');e.bankSetup={template,docs,config:options.config||defaultConfig(currentUnit)};throw e;}
-    validateBankConfig(activeConfig,docs);
+    validateBankConfig(activeConfig,docs,template);
     const totalColumn=bm.total,netColumn=bm.net;
     const context=monthlyContext(bendSheet,template,options.roundBPJS!==false);
     if(!options.monthlyDeductions){const error=new Error('Konfirmasi pengaturan potongan bulan ini.');error.monthlyDeductions=context;throw error;}
     const monthlyConfig=validateMonthlyConfig(context,options.monthlyDeductions);
-    monthlyConfig.slots.forEach(s=>{s.sourceTitle=context.columns.find(c=>c.column===s.column)?.title||'';});
+    monthlyConfig.slots.forEach(s=>{s.sourceTitle=deductionColumns(s).map(column=>XLSX.utils.encode_col(column)+' · '+(context.columns.find(c=>c.column===column)?.title||'')).join(' + ');});
     const deptFields=monthlyConfig.slots.filter(s=>s.column>=0);
     const hasBPJS=deptFields.some(s=>s.kind==='bpjs');
     const templateMap=new Map(), byAccount=new Map(), branches=new Map();
@@ -711,10 +725,10 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
       if(gross<0)throw new Error('Bendahara baris '+(i+1)+': gaji kotor minus.');
       for(const setting of deptFields){
         const {slot,column:src,name:label}=setting;
-        const value=cents(r[src],'bendahara '+label+' baris '+(i+1));
+        const value=deductionAmount(r,setting);
         if(value<0)throw new Error('Bendahara baris '+(i+1)+': potongan '+label+' minus.');
         sourceDept[slot]=value;pot[slot]=value;
-        if(setting.rounding==='rupiah')pot[slot]=Math.round(value/100)*100;
+        if(setting.rounding==='rupiah')pot[slot]=deductionAmount(r,setting,true);
         if(pot[slot]!==value)changes.push({name:String(r[bm.name]),account:acct,field:'POT '+(slot+1)+' · '+label,before:value,after:pot[slot],money:true,note:'Pembulatan ke rupiah penuh sesuai pilihan BPJS.',time:new Date().toISOString()});
       }
       const rawDept=sourceDept.reduce((a,b)=>a+b,0);
@@ -726,11 +740,9 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
       rows.push({id:rows.length,number:Number(r[bm.number])||rows.length+1,name,displayName,branch:typeof matched?.[3]==='string'&&matched[3].trim()?matched[3].trim():defaultBranch,account:acct,sourceAccount:acct,gross,pot,sourceDept,expectedDept:pot.slice(),sourceRow:i+1});
     }
     if(!rows.length)throw new Error('Tidak ada baris pegawai aktif pada sheet bendahara.');
-    const destinations=Array.from({length:12},(_,i)=>String(template.rows[3]?.[i+6]??'').trim());
+    const master=readMaster(template),destinations=master.map(s=>s.destination),slotNames=master.map(s=>s.name);
     const header=Array.from({length:4},(_,i)=>Array.from({length:20},(_,j)=>template.rows[i]?.[j]??null));
-    const slotNames=Array.from({length:12},(_,i)=>String(header[2][i+6]||SLOT_NAMES[i]).trim());
-    for(const setting of monthlyConfig.slots){slotNames[setting.slot]=setting.name;destinations[setting.slot]=setting.destination;header[2][setting.slot+6]=setting.name;header[3][setting.slot+6]=setting.destination;}
-    for(const def of SOURCE_DEFS){if(def.destination){destinations[def.slot]=def.destination;header[3][def.slot+6]=def.destination;}slotNames[def.slot]=def.title;header[2][def.slot+6]=def.title;}
+    master.forEach(s=>{header[2][s.slot+6]=s.name;header[3][s.slot+6]=s.destination;});
     const bankGroups=[],sourceSheets={};
     for(const def of SOURCE_DEFS){
       if(def.status!=='file'||!docs[def.file])continue;
@@ -740,7 +752,7 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
       }
       const grouped=new Map();
       for(const item of mappedBankRows(source,def)){
-        const {account:acct,amount:amt,name,sourceRow}=item;if(!amt)continue;
+        const {account:acct,amount:amt,name,sourceRow}=item;if(!amt)continue;if(!destinations[def.slot])throw new Error('POT '+(def.slot+1)+' berisi potongan, tetapi rekening master kosong/tidak valid. Perbaiki file kerja sesuai T24 lalu unggah ulang.');
         const key=def.slot+'|'+acct;
         if(!grouped.has(key))grouped.set(key,{key,slot:def.slot,account:acct,amount:0,name,origin:def.title,sourceRows:[]});
         const g=grouped.get(key);g.amount+=amt;g.sourceRows.push(sourceRow);
@@ -757,7 +769,7 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
       else if(typeof rawDate==='string'&&/^\d{4}-\d{2}/.test(rawDate))d=new Date(rawDate.slice(0,10)+'T00:00:00Z');
       if(d&&!Number.isNaN(d.getTime())&&(d.getUTCMonth()!==detectedPeriod.month||d.getUTCFullYear()!==detectedPeriod.year))periodWarnings.push('Periode KCP Pauh berbeda dari data bendahara.');
     }
-    return initializeReview({unit:structuredClone(currentUnit),config:structuredClone(activeConfig),rows,bankGroups,sourceChecks,periodWarnings,destinations,slotNames,header,templateSheet:template.name,period:detectedPeriod,filesPresent:Object.fromEntries(Object.keys(docs).map(k=>[k,true])),allocations:{},defaultBranch,changes,hasBPJS,monthlyConfig},template,bendSheet,sourceSheets);
+    return initializeReview({mappingVersion:MASTER_MAPPING_VERSION,master,unit:structuredClone(currentUnit),config:structuredClone(activeConfig),rows,bankGroups,sourceChecks,periodWarnings,destinations,slotNames,header,templateSheet:template.name,period:detectedPeriod,filesPresent:Object.fromEntries(Object.keys(docs).map(k=>[k,true])),allocations:{},defaultBranch,changes,hasBPJS,monthlyConfig},template,bendSheet,sourceSheets);
   }
 
   function analyzeModel(model){activateConfig(model.config);return analyzeFlexible(model);}
@@ -766,11 +778,21 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
     return activeRows(model).map(r=>[r.branch,r.account,r.gross,...r.pot]);
   }
   function csvText(model) {
+    assertMaster(model);if(!analyzeModel(model).canCSV)throw new Error('Selesaikan pemeriksaan sebelum ekspor CSV.');
     const encoded=value=>{const s=typeof value==='number' ? String(value/100) : String(value);return /[",\r\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;};
     return exportRows(model).map(row=>row.map((v,i)=>encoded(i<2?v:v)).join(',')).join('\r\n')+'\r\n';
   }
   function workbookForModelBase(model) {
-    const aoa=model.header.map(row=>row.slice());
+    const aoa=Array.from({length:4},(_,i)=>(model.header[i]||[]).slice());
+    // Use the confirmed mapping at export time, including restored workspaces.
+    for(let slot=0;slot<12;slot++){
+      const column=slot+6;
+      const label=String(model.slotNames?.[slot]??aoa[2][column]??('POT '+(slot+1)));
+      aoa[0][column]=label;
+      aoa[1][column]='POT '+(slot+1);
+      aoa[2][column]=label;
+      aoa[3][column]=model.destinations?.[slot]??aoa[3][column]??'';
+    }
     model.rows.forEach((r,index)=>{
       const excelRow=index+5;
       const sum=r.pot.reduce((a,b)=>a+b,0);
@@ -839,7 +861,7 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
     const candidates=[];
     for(const source of readBankSheets(workbook)){
       const headers=[];
-      source.rows.forEach((r,i)=>{const h=r.map(normalizeHeader),pots=Array.from({length:12},(_,s)=>h.indexOf('POT'+(s+1)));const account=h.indexOf('REKENINGGAJI'),gross=h.indexOf('GAJIKOTOR');if(account>=0&&gross>=0&&pots.every(c=>c>=0))headers.push({i,h,pots,account,gross});});
+      source.rows.forEach((r,i)=>{const h=r.map(normalizeHeader),pots=Array.from({length:12},(_,s)=>h.indexOf('POT'+(s+1)));const account=h.indexOf('REKENINGGAJI'),gross=h.indexOf('GAJIKOTOR');if(account>=0&&gross>=0&&pots.every(c=>c>=0)){if(pots.some((c,s)=>h.filter(v=>v==='POT'+(s+1)).length!==1))throw new Error('Judul POT ganda di sheet '+source.name+'. Periksa file kerja.');}if(account>=0&&gross>=0&&pots.every(c=>c>=0))headers.push({i,h,pots,account,gross});});
       if(headers.length>1){const first=headers[0];if(headers.some(h=>h.account!==first.account||h.gross!==first.gross||h.pots.some((c,i)=>c!==first.pots[i])))throw new Error('File kerja memiliki beberapa tabel dengan susunan berbeda di sheet '+source.name+'. Pisahkan tabel gaji yang digunakan ke satu sheet.');}
       for(const {i,h,pots,account,gross} of headers.slice(0,1)){
         const name=h.findIndex(v=>['NAMA','NAMAPEGAWAI','NAMAPENERIMA'].includes(v)),number=h.indexOf('NO'),branch=h.findIndex(v=>['KODECABANG','COCODE','BRANCH'].includes(v)),total=h.findIndex(v=>['JUMLAHPOTONGAN','TOTALPOT','TOTALPOTONGAN'].includes(v)),net=h.findIndex(v=>/^(JUMLAHGAJIBERSIH|GAJIBERSIH)/.test(v));
@@ -850,7 +872,7 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
         const labelRow=[...source.rows.slice(i+1,start),...source.rows.slice(0,i).reverse()].find(r=>pots.some(c=>typeof r[c]==='string'&&!/^(REK|IDR|\d)/i.test(r[c])))||[];
         const destRow=[...source.rows.slice(i+1,start),...source.rows.slice(0,i).reverse()].find(r=>pots.some(c=>destinationAccount(r[c])))||[];
         const rows=[canonical[0]||[],field.map((c,j)=>j>=6&&j<18?'POT '+(j-5):source.rows[i][c]??null),Array(20).fill(null),Array(20).fill(null)];
-        pots.forEach((c,j)=>{rows[2][j+6]=labelRow[c]??SLOT_NAMES[j];rows[3][j+6]=destRow[c]??null;});
+        pots.forEach((c,j)=>{rows[2][j+6]=labelRow[c]??('POT '+(j+1));rows[3][j+6]=destRow[c]??null;});
         const indexes=[],warnings=[],excluded=[];
         for(let j=start;j<source.rows.length;j++){
           const r=source.rows[j],a=cleanAccount(r[account]);if(a&&!r[name]&&!r[branch]){excluded.push({row:j+1,name:'Catatan / rekap',account:String(r[account]),amount:0,reason:'Bukan baris pegawai: tidak ada nama dan kode cabang.'});continue;}if(!a){if(r[account]!=null&&r[account]!==''&&typeof r[gross]==='number'&&r[name])warnings.push('File kerja baris '+(j+1)+': rekening tidak valid.');continue;}
@@ -939,6 +961,8 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
     if(action==='work'&&!row.workOriginal)throw new Error('Pegawai tidak ditemukan di file kerja.');
     const n=action==='zero'?0:action==='work'?row.workOriginal.pot[slot]:action==='source'||action==='undo'?row.computedPot[slot]:value;
     if(!Number.isSafeInteger(n)||n<0)throw new Error('Nominal harus valid dan tidak negatif.');
+    if(n>0&&model.config.sources.some(d=>d.slot===slot&&d.status==='absent'))throw new Error('Sumber bank ini dikonfirmasi tidak ada. Cocokkan ulang untuk mengaktifkannya.');
+    if(n>0&&!destinationAccount(model.destinations[slot]))throw new Error('Rekening master slot ini kosong. Perbaiki file kerja dan cocokkan ulang.');
     if(n>0&&!BANK_SLOTS.has(slot)&&model.monthlyConfig.slots.find(s=>s.slot===slot)?.column<0)throw new Error('Slot dinas ini dikonfirmasi tidak dipotong. Ulangi pemetaan bulanan untuk mengaktifkannya.');
     if(n>0&&BANK_SLOTS.has(slot)&&!model.config.sources.some(d=>d.slot===slot&&d.status==='file'&&model.filesPresent[d.file]))throw new Error('Unggah sumber bank untuk slot ini sebelum menambah penyesuaian.');
     const before=row.pot[slot],key=row.id+':pot:'+slot;
@@ -979,7 +1003,7 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
     model.workOnly.forEach((x,i)=>issues.push({type:'workonly',kind:'comparison',name:x.name,account:x.account,slot:null,origin:'File kerja asli',amount:x.gross,note:'Ada di file kerja, tidak ada di bendahara aktif',extraIndex:i,resolved:!!model.workDecisions['extra:'+i]}));
     const complete=model.config.sources.every(d=>d.status==='absent'||d.status==='file'&&model.filesPresent[d.file]),unfilled=rows.filter(r=>!r.branch||!cleanAccount(r.account)).length;
     totals.bankDifference=totals.sourceBank-[...actualSlots.values()].reduce((a,b)=>a+b,0);const itemized=issues.filter(i=>i.kind==='bank').reduce((a,i)=>a+i.amount,0),sourceCheckCount=model.sourceChecks.length;
-    const mappingReady=!!model.monthlyConfig?.confirmed&&rows.every(r=>r.pot.every((v,s)=>!v||!!destinationAccount(model.destinations[s])))&&model.monthlyConfig.slots.every(s=>s.column>=0||rows.every(r=>!r.pot[s.slot]));
+    const mappingReady=masterTrusted(model)&&!!model.monthlyConfig?.confirmed&&rows.every(r=>r.pot.every((v,s)=>!v||!!destinationAccount(model.destinations[s])))&&model.monthlyConfig.slots.every(s=>s.column>=0||rows.every(r=>!r.pot[s.slot]));
     const hardParse=model.sourceSummaries.some(s=>s.title==='File kerja'&&s.warnings.length);
     const canCSV=rows.length>0&&mappingReady&&complete&&!pendingBank&&!pendingWork&&!totals.negative&&!sourceCheckCount&&!model.periodWarnings.length&&!unfilled&&itemized===totals.bankDifference&&model.sourceReview&&!hardParse;
     return {issues,totals,sourceSlots,actualSlots,complete,ambiguous,unfilled,itemized,sourceCheckCount,canCSV,mappingReady,pendingBank,pendingWork,comparisons,activeCount:rows.length,excludedCount:model.rows.length-rows.length,grossByAcct:new Map()};
@@ -1014,31 +1038,54 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
     const error=new Error('Pilih kolom pada data bendahara.');error.bendaharaMapping={sheets,candidates};throw error;
   }
 
-  function workbookForModel(model){activateConfig(model.config);const wb=workbookForModelBase({...model,rows:activeRows(model)});appendReviewSheets(wb,model);return wb;}
+  function workbookForModel(model){assertMaster(model);activateConfig(model.config);const wb=workbookForModelBase({...model,rows:activeRows(model)});appendReviewSheets(wb,model);return wb;}
   // Pure helpers are exposed for local verification. No workbook data is stored here.
-  window.gajikuuCore={activateUnit,defaultConfig,activateConfig,validateBankConfig,detectPayrollSheet,adjustPot,decideGroup,setEmployeeStatus,workDifferences,activeRows,refreshCalculated,monthlyContext,validateMonthlyConfig,monthlyPreview,workbookForIssues,makeModel,analyzeModel,csvText,workbookForModel,cleanAccount,cents,SLOT_NAMES,bankHeaderMap,detectBankSheet,mappedBankRows,detectBendahara,bendHeaderMap,bendDataRows};
+  window.gajikuuCore={deductionColumns,deductionAmount,readMaster,masterSignature,masterTrusted,activateUnit,defaultConfig,activateConfig,validateBankConfig,detectPayrollSheet,adjustPot,decideGroup,setEmployeeStatus,workDifferences,activeRows,refreshCalculated,monthlyContext,validateMonthlyConfig,monthlyPreview,workbookForIssues,makeModel,analyzeModel,csvText,workbookForModel,cleanAccount,cents,SLOT_NAMES,bankHeaderMap,detectBankSheet,mappedBankRows,detectBendahara,bendHeaderMap,bendDataRows};
 
+  const MASTER_MAPPING_VERSION=2;
   const BASE_BANK_DEFS=SOURCE_DEFS.map(d=>({...d,kind:d.slot}));
   const BASE_SLOT_NAMES=SLOT_NAMES.slice();
   const INITIAL_UNITS=[{id:'disdik',name:'Dinas Pendidikan',short:'DISDIK',aliases:'DISDIK, DINAS PENDIDIKAN, KORWIL, UPTD'}, {id:'dkp',name:'Dinas Ketahanan Pangan',short:'DKP',aliases:'DKP, DINAS KETAHANAN PANGAN'}];
   let units=INITIAL_UNITS.map(x=>({...x})),currentUnit=units[0],activeConfig=null,workspacePeriod=null,workspaceKey='',switching=false,saveTimer=null,storageFailed=false;
-  function headerAccount(title){return destinationAccount(String(title||'').match(/\((\d{6,18})\)/)?.[1]||'');}
+  function headerAccount(title){const matches=String(title||'').toUpperCase().match(/(?:IDR)?\d{6,18}/g)||[];const unique=[...new Set(matches.map(destinationAccount).filter(Boolean))];return unique.length===1?unique[0]:'';}
   function deductionKey(value){let t=normalizeHeader(String(value||'').replace(/\([^)]*\)/g,''));if(/KORPRI/.test(t))return 'KORPRI';if(/RUMPUNPENYULUH|KOPRPENYULUH/.test(t))return 'PENYULUH';if(/BINATANI/.test(t))return 'BINATANI';if(/DHARMAWANITA|DARMAWANITA|IURANDWP|^DW$/.test(t))return 'DW';return t.replace(/^POTONGAN|^IURAN|^KOPERASI|^KOP/g,'');}
   function matchesUnit(value){const t=normalizeHeader(value);return String(currentUnit.aliases||currentUnit.name).split(',').map(normalizeHeader).filter(Boolean).some(a=>t.includes(a));}
-  function defaultConfig(unit){const slots=unit.id==='dkp'?[0,1,2,4,8,11]:[0,2,3,4,8,9];return {sources:BASE_BANK_DEFS.map((d,i)=>({...d,slot:slots[i],status:'pending',destination:''}))};}
+  function readMaster(template){return Array.from({length:12},(_,slot)=>({slot,name:String(template.rows[2]?.[slot+6]||('POT '+(slot+1))).trim(),destination:destinationAccount(template.rows[3]?.[slot+6])}));}
+  function masterSignature(master){return JSON.stringify(master.map(s=>[s.slot,s.name,s.destination]));}
+  function masterTrusted(model){
+    const master=model.master;
+    if(model.mappingVersion!==MASTER_MAPPING_VERSION||!Array.isArray(master)||master.length!==12||model.config?.masterSignature!==masterSignature(master))return false;
+    if(!master.every((s,i)=>s.slot===i&&s.name===model.slotNames[i]&&s.destination===model.destinations[i]))return false;
+    const assigned=new Set();
+    for(const d of model.config.sources){if(d.slot<0){if(d.status==='file')return false;continue;}if(assigned.has(d.slot)||d.destination!==master[d.slot]?.destination)return false;assigned.add(d.slot);}
+    for(const d of model.monthlyConfig?.slots||[]){if(assigned.has(d.slot)||d.name!==master[d.slot]?.name||d.destination!==master[d.slot]?.destination)return false;assigned.add(d.slot);}
+    return assigned.size===12;
+  }
+  function assertMaster(model){if(!masterTrusted(model))throw new Error('Cocokkan ulang memakai file kerja asli yang sesuai T24. Pemetaan lama belum mengikuti master 12 POT.');}
+  function defaultConfig(unit){return {mappingVersion:MASTER_MAPPING_VERSION,sources:BASE_BANK_DEFS.map(d=>({...d,slot:-1,status:'pending',destination:''}))};}
   function activateUnit(unit){currentUnit=typeof unit==='string'?units.find(u=>u.id===unit):unit;if(!currentUnit)throw new Error('Dinas tidak ditemukan.');activateConfig(defaultConfig(currentUnit));}
-  function activateConfig(config){activeConfig=structuredClone(config);SOURCE_DEFS=activeConfig.sources.filter(d=>d.slot>=0);BANK_SLOTS=new Set(SOURCE_DEFS.map(d=>d.slot));DEPARTMENT_SLOTS=Array.from({length:12},(_,i)=>i).filter(i=>!BANK_SLOTS.has(i));SLOT_NAMES=BASE_SLOT_NAMES.slice();SOURCE_DEFS.forEach(d=>SLOT_NAMES[d.slot]=d.title);}
-  function validateBankConfig(config,docs){
-    if(!config||!Array.isArray(config.sources)||config.sources.length!==BASE_BANK_DEFS.length)throw new Error('Pengaturan sumber bank belum lengkap.');
+  function activateConfig(config){activeConfig=structuredClone(config);SOURCE_DEFS=activeConfig.sources.filter(d=>d.slot>=0);BANK_SLOTS=new Set(SOURCE_DEFS.map(d=>d.slot));DEPARTMENT_SLOTS=Array.from({length:12},(_,i)=>i).filter(i=>!BANK_SLOTS.has(i));SLOT_NAMES=Array.from({length:12},(_,i)=>'POT '+(i+1));}
+  function validateBankConfig(config,docs,template){
+    const master=readMaster(template);
+    if(config?.mappingVersion!==MASTER_MAPPING_VERSION||config.masterSignature!==masterSignature(master))throw new Error('Konfirmasi ulang slot bank sesuai file kerja yang diunggah.');
+    if(!Array.isArray(config.sources)||config.sources.length!==BASE_BANK_DEFS.length)throw new Error('Pengaturan sumber bank belum lengkap.');
     const used=new Set();
-    config.sources.forEach((d,i)=>{const base=BASE_BANK_DEFS[i];if(d.file!==base.file||d.kind!==base.kind)throw new Error('Sumber bank tidak valid.');if(!['file','absent','pending'].includes(d.status))throw new Error('Status bank tidak valid.');if(!Number.isInteger(d.slot)||d.slot< -1||d.slot>11||d.slot<0&&d.status!=='absent')throw new Error('Pilih slot untuk '+d.title+'.');if(d.slot>=0){if(used.has(d.slot))throw new Error('POT '+(d.slot+1)+' dipakai dua sumber bank.');used.add(d.slot);}if(d.status==='file'&&!docs[d.file])throw new Error('Unggah berkas '+d.title+' atau pilih belum diterima.');if(d.destination&&!destinationAccount(d.destination))throw new Error('Rekening tujuan '+d.title+' tidak valid.');if(d.status==='file'&&!destinationAccount(d.destination))throw new Error('Isi rekening tujuan '+d.title+'.');});
-    return config;
+    config.sources.forEach((d,i)=>{
+      const base=BASE_BANK_DEFS[i];if(d.file!==base.file||d.kind!==base.kind)throw new Error('Sumber bank tidak valid.');
+      if(!['file','absent','pending'].includes(d.status))throw new Error('Status bank tidak valid.');
+      if(!Number.isInteger(d.slot)||d.slot< -1||d.slot>11||d.slot<0&&d.status==='file')throw new Error('Pilih slot file kerja untuk '+d.title+'.');
+      if(d.slot>=0){if(used.has(d.slot))throw new Error('POT '+(d.slot+1)+' dipakai dua sumber bank.');used.add(d.slot);if(d.destination!==master[d.slot].destination)throw new Error('Rekening POT '+(d.slot+1)+' harus mengikuti file kerja.');}
+      else if(d.destination)throw new Error('Sumber tanpa slot tidak memiliki rekening tujuan.');
+      if(d.status==='file'&&!docs[d.file])throw new Error('Unggah berkas '+d.title+' atau pilih belum diterima.');
+    });return config;
   }
   async function askBankSetup({template,docs,config}){
-    const draft=structuredClone(config);draft.sources.forEach(d=>{if(docs[d.file]&&d.status!=='absent')d.status='file';else if(!docs[d.file]&&d.status==='file')d.status='pending';if(d.slot>=0&&!d.destination)d.destination=destinationAccount(template.rows[3]?.[d.slot+6]);});
-    const slotOptions=d=>'<option value="-1"'+(d.slot<0?' selected':'')+'>Tanpa slot</option>'+Array.from({length:12},(_,i)=>`<option value="${i}" ${i===d.slot?'selected':''}>POT ${i+1} · ${esc(template.rows[2]?.[i+6]||'')}</option>`).join('');
-    const html=`<p>${esc(currentUnit.short)} · ${esc(MONTHS[period().month])} ${period().year}</p><div class="bank-setup">${draft.sources.map((d,i)=>`<div class="bank-setting"><b>${esc(d.title)}<small style="display:block;font-weight:400">${docs[d.file]?'Berkas tersedia':'Belum ada berkas'}</small></b><label>Status<select id="bankStatus${i}"><option value="pending" ${d.status==='pending'?'selected':''}>Belum diterima</option><option value="file" ${d.status==='file'?'selected':''}>Gunakan file</option><option value="absent" ${d.status==='absent'?'selected':''}>Tidak ada bulan ini</option></select></label><label>Slot<select id="bankSlot${i}">${slotOptions(d)}</select></label><label>Rekening tujuan<input id="bankDest${i}" value="${esc(d.destination)}" inputmode="text"></label></div>`).join('')}</div><p class="mapping-footnote">Belum diterima menahan CSV. Tidak ada bulan ini menghasilkan nol. Slot kosong tersedia untuk potongan dinas.</p><label class="deduction-confirm"><input type="checkbox" id="bankConfirm"> Status, slot, dan rekening tujuan bulan ini sudah diperiksa.</label>`;
-    const response=await dialog({title:'Sumber potongan bank',html,width:1060,showCancelButton:true,confirmButtonText:'Lanjut',cancelButtonText:'Batal',focusConfirm:false,didOpen:()=>{draft.sources.forEach((d,i)=>{els('bankSlot'+i).addEventListener('change',()=>{const slot=Number(els('bankSlot'+i).value);els('bankDest'+i).value=slot<0?'':destinationAccount(template.rows[3]?.[slot+6]);els('bankConfirm').checked=false;});for(const prefix of ['bankStatus','bankDest'])els(prefix+i).addEventListener('input',()=>els('bankConfirm').checked=false);});},preConfirm:()=>{try{if(!els('bankConfirm').checked)throw new Error('Konfirmasi pengaturan bank dahulu.');const result={sources:draft.sources.map((d,i)=>({...d,slot:Number(els('bankSlot'+i).value),status:els('bankStatus'+i).value,destination:els('bankDest'+i).value.trim()}))};return validateBankConfig(result,docs);}catch(e){Swal.showValidationMessage(e.message);return false;}}});return response.isConfirmed?response.value:null;
+    const master=readMaster(template),signature=masterSignature(master);
+    const draft=structuredClone(config?.mappingVersion===MASTER_MAPPING_VERSION&&config.masterSignature===signature?config:defaultConfig(currentUnit));
+    draft.sources.forEach(d=>{if(docs[d.file]&&d.status!=='absent')d.status='file';else if(!docs[d.file]&&d.status==='file')d.status='pending';d.destination=master[d.slot]?.destination||'';});
+    const slotOptions=d=>'<option value="-1"'+(d.slot<0?' selected':'')+'>Belum dipilih / tidak digunakan</option>'+master.map(s=>`<option value="${s.slot}" ${s.slot===d.slot?'selected':''}>POT ${s.slot+1} · ${esc(s.name)} · ${esc(s.destination||'tanpa rekening')}</option>`).join('');
+    const html=`<p>Slot dan rekening dikunci dari file kerja ${esc(currentUnit.short)}.</p><div class="bank-setup">${draft.sources.map((d,i)=>`<div class="bank-setting"><b>${esc(d.title)}<small style="display:block;font-weight:400">${docs[d.file]?'Berkas tersedia':'Belum ada berkas'}</small></b><label>Status<select id="bankStatus${i}"><option value="pending" ${d.status==='pending'?'selected':''}>Belum diterima</option><option value="file" ${d.status==='file'?'selected':''}>Gunakan file</option><option value="absent" ${d.status==='absent'?'selected':''}>Tidak ada bulan ini</option></select></label><label>Slot file kerja<select id="bankSlot${i}">${slotOptions(d)}</select></label><label>Rekening master<input id="bankDest${i}" value="${esc(d.destination)}" readonly></label></div>`).join('')}</div><p class="mapping-footnote">Pilih POT sesuai tujuan sumber. Rekening yang sama bisa memiliki beberapa POT: tentukan slotnya. Belum diterima menahan CSV. Tidak ada bulan ini pada slot terpilih menghasilkan 0.</p><label class="deduction-confirm"><input type="checkbox" id="bankConfirm"> Status dan tujuan setiap sumber sudah sesuai master file kerja.</label>`;
+    const response=await dialog({title:'Sumber potongan bank',html,width:1060,showCancelButton:true,confirmButtonText:'Lanjut',cancelButtonText:'Batal',focusConfirm:false,didOpen:()=>{draft.sources.forEach((d,i)=>{els('bankSlot'+i).addEventListener('change',()=>{els('bankDest'+i).value=master[Number(els('bankSlot'+i).value)]?.destination||'';els('bankConfirm').checked=false;});els('bankStatus'+i).addEventListener('change',()=>els('bankConfirm').checked=false);});},preConfirm:()=>{try{if(!els('bankConfirm').checked)throw new Error('Konfirmasi pengaturan bank dahulu.');const result={mappingVersion:MASTER_MAPPING_VERSION,masterSignature:signature,sources:draft.sources.map((d,i)=>{const slot=Number(els('bankSlot'+i).value);return {...d,slot,status:els('bankStatus'+i).value,destination:master[slot]?.destination||''};})};return validateBankConfig(result,docs,template);}catch(e){Swal.showValidationMessage(e.message);return false;}}});return response.isConfirmed?response.value:null;
   }
   function selectedFile(key){return document.querySelector(`[data-file="${key}"]`)?.files[0]||state.files[key]||null;}
   const jobKey=(id,p)=>id+':'+p.year+'-'+String(p.month+1).padStart(2,'0');
@@ -1231,19 +1278,22 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
     if(!window.Swal)throw new Error('Konfirmasi potongan belum dapat ditampilkan. Buka ulang aplikasi.');
     const cols=context.columns,ignoredDraft={};
     const sourceOptions=selected=>'<option value="-1"'+(selected===-1?' selected':'')+'>Tidak dipotong bulan ini</option>'+cols.map(c=>`<option value="${c.column}" ${c.column===selected?'selected':''}>${esc(XLSX.utils.encode_col(c.column)+' · '+c.title)}</option>`).join('');
-    const cards=context.slots.map((s,i)=>`<article class="deduction-card" data-deduction="${i}"><div class="deduction-heading"><span>POT ${s.slot+1}</span><small id="dedTotal${i}"></small></div>${s.conflict?`<p class="account-warning">${esc(s.conflict)}</p>`:''}<div class="deduction-fields"><label class="deduction-wide">Kolom bendahara<select id="dedColumn${i}">${sourceOptions(s.column)}</select></label><label>Nama potongan<input id="dedName${i}" value="${esc(s.name)}" maxlength="80"></label><label>Rekening tujuan<input id="dedAccount${i}" value="${esc(s.destination)}" inputmode="text" autocomplete="off"></label><label>Jenis potongan<select id="dedKind${i}"><option value="other" ${s.kind==='other'?'selected':''}>Potongan lainnya</option><option value="bpjs" ${s.kind==='bpjs'?'selected':''}>BPJS</option></select></label><label>Pembulatan<select id="dedRound${i}"><option value="none" ${s.rounding==='none'?'selected':''}>Tanpa pembulatan</option><option value="rupiah" ${s.rounding==='rupiah'?'selected':''}>BPJS ke rupiah penuh</option></select></label></div><label class="deduction-absent" id="dedAbsentLabel${i}"><input id="dedAbsent${i}" type="checkbox"> Saya pastikan potongan ini tidak ada bulan ini.</label></article>`).join('');
-    const html=`<p class="mapping-intro">Periode: <b>${esc(context.period?MONTHS[context.period.month]+' '+context.period.year:'sesuai data yang dipilih')}</b>. Periksa kolom dan rekening tujuan.</p><div class="monthly-scroll"><div class="deduction-grid">${cards}</div><div id="dedUnmapped"></div><div class="deduction-check" id="dedCheck"></div><p class="mapping-footnote">Slot bank mengikuti pengaturan bulan ini. Ganti kolom akan mengosongkan rekening tujuan; isi kembali sesuai PAYR.</p></div><label class="deduction-confirm"><input type="checkbox" id="dedConfirm"> Potongan, slot POT, rekening tujuan, dan pembulatan sudah diperiksa.</label>`;
-    function readSlots(){return context.slots.map((s,i)=>({slot:s.slot,column:Number(els('dedColumn'+i).value),name:els('dedName'+i).value,destination:els('dedAccount'+i).value,kind:els('dedKind'+i).value,rounding:els('dedRound'+i).value,absentConfirmed:els('dedAbsent'+i).checked}));}
+    const cards=context.slots.map((s,i)=>`<article class="deduction-card" data-deduction="${i}"><div class="deduction-heading"><span>POT ${s.slot+1}</span><small id="dedTotal${i}"></small></div>${s.conflict?`<p class="account-warning">${esc(s.conflict)}</p>`:''}<div class="deduction-fields"><label class="deduction-wide">Kolom bendahara<select id="dedColumn${i}">${sourceOptions(s.column)}</select></label><details class="deduction-wide merge-columns"><summary>Gabungkan kolom lain <span id="dedExtraCount${i}"></span></summary><div>${cols.map(c=>`<label><input type="checkbox" id="dedExtra${i}_${c.column}" ${(s.additionalColumns||[]).includes(c.column)?'checked':''}> ${esc(XLSX.utils.encode_col(c.column)+' · '+c.title)}</label>`).join('')}</div></details><label>Nama potongan<input id="dedName${i}" value="${esc(s.name)}" maxlength="80" readonly></label><label>Rekening master<input id="dedAccount${i}" value="${esc(s.destination)}" inputmode="text" autocomplete="off" readonly></label><label>Jenis potongan<select id="dedKind${i}"><option value="other" ${s.kind==='other'?'selected':''}>Potongan lainnya</option><option value="bpjs" ${s.kind==='bpjs'?'selected':''}>BPJS</option></select></label><label>Pembulatan<select id="dedRound${i}"><option value="none" ${s.rounding==='none'?'selected':''}>Tanpa pembulatan</option><option value="rupiah" ${s.rounding==='rupiah'?'selected':''}>BPJS ke rupiah penuh</option></select></label></div><label class="deduction-absent" id="dedMismatchLabel${i}" hidden><input id="dedMismatch${i}" type="checkbox"> Rekening sumber berbeda; saya pastikan tujuan yang benar adalah rekening master di atas.</label><label class="deduction-absent" id="dedAbsentLabel${i}"><input id="dedAbsent${i}" type="checkbox"> Saya pastikan potongan ini tidak ada bulan ini.</label></article>`).join('');
+    const html=`<p class="mapping-intro">Periode: <b>${esc(context.period?MONTHS[context.period.month]+' '+context.period.year:'sesuai data yang dipilih')}</b>. Periksa kolom dan rekening tujuan.</p><div class="monthly-scroll"><div class="deduction-grid">${cards}</div><div id="dedUnmapped"></div><div class="deduction-check" id="dedCheck"></div><p class="mapping-footnote">Nama dan rekening mengikuti file kerja. Beberapa kolom dapat dijumlahkan ke satu POT. Centang pada “Gabungkan kolom lain”. Kolom sumber hanya boleh dipakai sekali.</p></div><label class="deduction-confirm"><input type="checkbox" id="dedConfirm"> Potongan, slot POT, rekening tujuan, dan pembulatan sudah diperiksa.</label>`;
+    function readSlots(){return context.slots.map((s,i)=>({slot:s.slot,column:Number(els('dedColumn'+i).value),additionalColumns:cols.filter(c=>els('dedExtra'+i+'_'+c.column).checked).map(c=>c.column),name:els('dedName'+i).value,destination:els('dedAccount'+i).value,kind:els('dedKind'+i).value,rounding:els('dedRound'+i).value,accountMismatchConfirmed:els('dedMismatch'+i).checked,absentConfirmed:els('dedAbsent'+i).checked}));}
     function rememberIgnored(){for(const c of cols){const check=els('dedIgnore'+c.column),reason=els('dedReason'+c.column);if(check&&reason)ignoredDraft[c.column]={confirmed:check.checked,reason:reason.value};}}
     function showUnmapped(){
-      rememberIgnored();const assigned=new Set(readSlots().map(s=>s.column)),remaining=cols.filter(c=>!assigned.has(c.column));
+      rememberIgnored();const assigned=new Set(readSlots().flatMap(deductionColumns)),remaining=cols.filter(c=>!assigned.has(c.column));
       els('dedUnmapped').innerHTML=remaining.length?'<div class="deduction-unmapped"><h4>Kolom yang belum digunakan</h4><p>Jika ini potongan, pilih pada salah satu slot di atas. Kolom informasi lain perlu diberi keterangan.</p>'+remaining.map(c=>`<div><b>${esc(XLSX.utils.encode_col(c.column)+' · '+c.title)}</b><small>${esc(c.invalid?'Ada isi bukan angka':money(c.total))}</small><label><input id="dedIgnore${c.column}" type="checkbox" ${ignoredDraft[c.column]?.confirmed?'checked':''}> Kolom ini bukan potongan</label><input id="dedReason${c.column}" aria-label="Alasan kolom ${esc(c.title)} tidak dipotong" placeholder="Alasan, misalnya keterangan pegawai" value="${esc(ignoredDraft[c.column]?.reason||'')}"></div>`).join('')+'</div>':'';
       for(const c of remaining)for(const id of ['dedIgnore','dedReason'])els(id+c.column).addEventListener('input',()=>{els('dedConfirm').checked=false;rememberIgnored();});
     }
     function refresh(){
       const slots=readSlots();slots.forEach((s,i)=>{
-        const col=cols.find(c=>c.column===s.column);els('dedTotal'+i).textContent=col?col.invalid?'Periksa isi kolom':money(col.total):'Rp0,00';
+        const selected=deductionColumns(s),items=cols.filter(c=>selected.includes(c.column));els('dedTotal'+i).textContent=items.some(c=>c.invalid)?'Periksa isi kolom':money(items.reduce((n,c)=>n+c.total,0));
+        els('dedExtraCount'+i).textContent=s.additionalColumns.length?'('+s.additionalColumns.length+' dipilih)':'';
+        cols.forEach(c=>{els('dedExtra'+i+'_'+c.column).disabled=s.column<0||c.column===s.column;});
         els('dedAbsentLabel'+i).hidden=s.column>=0;
+        els('dedMismatchLabel'+i).hidden=!items.some(col=>headerAccount(col.title)&&headerAccount(col.title)!==s.destination);
         els('dedRound'+i).disabled=s.kind!=='bpjs'||s.column<0;
         if(s.kind!=='bpjs'||s.column<0)els('dedRound'+i).value='none';
       });
@@ -1253,8 +1303,9 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
     const response=await dialog({title:'Konfirmasi potongan bulan ini',width:1040,html,showCancelButton:true,confirmButtonText:'Konfirmasi & cocokkan',cancelButtonText:'Batal',focusConfirm:false,didOpen:()=>{
       refresh();showUnmapped();
       context.slots.forEach((s,i)=>{
-        els('dedColumn'+i).addEventListener('change',()=>{const c=cols.find(x=>x.column===Number(els('dedColumn'+i).value));els('dedAbsent'+i).checked=false;if(c){els('dedName'+i).value=c.title;els('dedAccount'+i).value='';els('dedKind'+i).value=c.role==='bpjs'?'bpjs':'other';els('dedRound'+i).value=c.role==='bpjs'?'rupiah':'none';}els('dedConfirm').checked=false;refresh();showUnmapped();});
-        for(const prefix of ['dedName','dedAccount','dedKind','dedRound','dedAbsent'])els(prefix+i).addEventListener('change',()=>{els('dedConfirm').checked=false;refresh();});
+        els('dedColumn'+i).addEventListener('change',()=>{const main=Number(els('dedColumn'+i).value);cols.forEach(c=>{if(main<0||c.column===main)els('dedExtra'+i+'_'+c.column).checked=false;});const c=cols.find(x=>x.column===Number(els('dedColumn'+i).value));els('dedAbsent'+i).checked=false;if(c){els('dedMismatch'+i).checked=false;els('dedKind'+i).value=c.role==='bpjs'?'bpjs':'other';els('dedRound'+i).value=c.role==='bpjs'?'rupiah':'none';}els('dedConfirm').checked=false;refresh();showUnmapped();});
+        cols.forEach(c=>els('dedExtra'+i+'_'+c.column).addEventListener('change',()=>{els('dedConfirm').checked=false;els('dedMismatch'+i).checked=false;els('dedAbsent'+i).checked=false;const selected=deductionColumns(readSlots()[i]);if(selected.some(column=>cols.find(c=>c.column===column)?.role!=='bpjs')){els('dedKind'+i).value='other';els('dedRound'+i).value='none';}refresh();showUnmapped();}));
+        for(const prefix of ['dedName','dedAccount','dedKind','dedRound','dedAbsent','dedMismatch'])els(prefix+i).addEventListener('change',()=>{els('dedConfirm').checked=false;refresh();});
       });
     },preConfirm:()=>{
       try{rememberIgnored();const config={confirmed:els('dedConfirm').checked,slots:readSlots(),ignored:cols.map(c=>({column:c.column,...ignoredDraft[c.column]}))};return validateMonthlyConfig(context,config);}
@@ -1316,7 +1367,7 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
   function renderAll(){scheduleSave();const model=state.model,r=state.result;if(!model||!r)return;
     const unmatched=new Set(r.issues.filter(x=>x.type==='unmatched').map(x=>x.account)).size;
     els('heroTitle').innerHTML=!r.complete?'<strong>File kerja,</strong><br><em>mulai terisi.</em>':r.canCSV?'<strong>Selisihnya</strong><br><em>sudah ketemu.</em>':'<strong>Perlu dicek,</strong><br><em>sebelum ekspor.</em>';
-    els('heroSub').textContent=`${r.activeCount.toLocaleString('id-ID')} aktif · ${r.excludedCount} tidak dibayarkan · ${r.pendingBank+r.pendingWork} perlu ditinjau.`;
+    els('heroSub').textContent=!masterTrusted(model)?'Cocokkan ulang dengan file kerja asli untuk menerapkan master 12 POT.':`${r.activeCount.toLocaleString('id-ID')} aktif · ${r.excludedCount} tidak dibayarkan · ${r.pendingBank+r.pendingWork} perlu ditinjau.`;
     els('orbitNumber').textContent=(unmatched||model.rows.length).toLocaleString('id-ID');els('orbitLabel').textContent=unmatched?'rekening tanpa gaji':'data gaji';
     els('metrics').innerHTML=[['GAJI KOTOR',compact(r.totals.gross),money(r.totals.gross)],['POTONGAN BANK',compact(r.totals.bank),money(r.totals.bank)],['POTONGAN DINAS',compact(r.totals.department),money(r.totals.department)],['SELISIH BANK',compact(r.totals.bankDifference),`${unmatched} rekening tanpa gaji`]].map((x,i)=>`<div class="metric-card ${i===3?'warm':''}"><small>${x[0]}</small><b title="${esc(i===3?money(r.totals.bankDifference):x[2])}">${esc(x[1])}</b><span>${esc(x[2])}</span></div>`).join('');
     els('diffCaption').textContent=`Selisih sumber dan hasil: ${money(r.totals.bankDifference)}.`;
@@ -1347,7 +1398,7 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
     els('changeDetails').hidden=!m.changes.length;els('changeCount').textContent='Catatan perubahan · '+m.changes.length;
     els('changeLog').innerHTML=m.changes.slice(-50).reverse().map(c=>`<div class="change-row"><b>${esc(c.name)} · ${esc(c.field)}</b><span>${esc(c.money?money(c.before):c.before)} → ${esc(c.money?money(c.after):c.after)}</span><small>${esc(c.note)}</small></div>`).join('');
   }
-  function renderSources(){if(!state.model)return;const r=state.result;els('sources').innerHTML=SOURCE_DEFS.map(def=>{const loaded=def.status==='file'&&!!state.model.filesPresent[def.file],absent=def.status==='absent',src=r.sourceSlots.get(def.slot)||0,work=r.actualSlots.get(def.slot)||0;return `<div class="source-mini ${loaded?'':'pending'}"><span>POT ${def.slot+1} · ${esc(def.title)}</span><b>${loaded?esc(money(work)):absent?'Tidak ada bulan ini':'Belum diterima'}</b><small>${loaded?`Sumber ${esc(money(src))} · Selisih ${esc(money(src-work))}`:absent?'Dikonfirmasi untuk periode ini':'Ekspor CSV menunggu konfirmasi'}</small></div>`;}).join('');}
+  function renderSources(){if(!state.model)return;const r=state.result;els('sources').innerHTML=state.model.config.sources.map(def=>{const loaded=def.status==='file'&&!!state.model.filesPresent[def.file],absent=def.status==='absent',src=r.sourceSlots.get(def.slot)||0,work=r.actualSlots.get(def.slot)||0;return `<div class="source-mini ${loaded?'':'pending'}"><span>${def.slot>=0?'POT '+(def.slot+1)+' · ':''}${esc(def.title)}</span><b>${loaded?esc(money(work)):absent?'Tidak ada bulan ini':'Belum diterima'}</b><small>${loaded?`Sumber ${esc(money(src))} · Selisih ${esc(money(src-work))}`:absent?'Dikonfirmasi untuk periode ini':'Ekspor CSV menunggu konfirmasi'}</small></div>`;}).join('');}
   function issueList(){const list=state.result?.issues||[];return list.filter(issue=>{
     if(state.filter==='bank'&&issue.kind!=='bank')return false;
     if(state.filter==='department'&&issue.kind!=='department')return false;
@@ -1368,6 +1419,7 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
   function renderExport(){const m=state.model,r=state.result,review=els('reviewCheck').checked;const checks=[];
     if(!m){checks.push([false,'Berkas belum dianalisis.']);}
     else{
+      checks.push([masterTrusted(m),masterTrusted(m)?'12 slot POT dan rekening mengikuti master file kerja.':'Pemetaan lama: cocokkan ulang dengan file kerja asli yang sesuai T24.']);
       checks.push([m.sourceReview,'Cakupan tabel, baris yang diambil, dan total sudah ditinjau.']);
       checks.push([!r.pendingBank,`Keputusan potongan bank belum selesai: ${r.pendingBank}.`]);
       checks.push([!r.pendingWork,`Perbedaan dengan file kerja belum selesai: ${r.pendingWork}.`]);
@@ -1385,7 +1437,7 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
     els('exportChecks').innerHTML=checks.map(([ok,s])=>`<div class="export-check ${ok?'':'fail'}"><i class="fi ${ok?'fi-rr-check':'fi-rr-exclamation'}"></i><span>${esc(s)}</span></div>`).join('');
     els('exportTitle').textContent=!m?'Menunggu analisis':r.canCSV?'Siap ditinjau':'Masih perlu diperiksa';
     els('exportSubtitle').textContent=!m?'Masukkan file untuk mulai menghitung.':`${r.activeCount.toLocaleString('id-ID')} pegawai aktif · Gaji bersih ${money(r.totals.net)}`;
-    els('downloadWork').disabled=!m;els('downloadCSV').disabled=!m||!r.canCSV||!chosenPeriodMatches()||!review;
+    els('downloadWork').disabled=!m||!masterTrusted(m);els('downloadCSV').disabled=!m||!r.canCSV||!chosenPeriodMatches()||!review;
     setPeriodUI();
   }
   function afterChange(){state.result=analyzeModel(state.model);els('reviewCheck').checked=false;renderAll();}
