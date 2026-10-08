@@ -410,6 +410,27 @@ body.login-open{overflow:hidden}
 .yuda-portrait-frame{position:absolute;top:0;bottom:0;left:-13%;right:-13%;display:block;overflow:visible;pointer-events:none;-webkit-mask-image:linear-gradient(to bottom,#000 70%,#000b 85%,transparent 100%);mask-image:linear-gradient(to bottom,#000 70%,#000b 85%,transparent 100%)}
 .home-person-left .yuda-portrait-frame .portrait-visual{position:absolute;left:0;bottom:0;width:100%;height:110%;object-fit:contain;object-position:center bottom;-webkit-mask-image:linear-gradient(to right,transparent 0%,#000 7%,#000 88%,transparent 100%);mask-image:linear-gradient(to right,transparent 0%,#000 7%,#000 88%,transparent 100%)}
 </style>
+
+<style id="bendahara-sheet-preview">
+.bend-review-layout{display:grid;grid-template-columns:minmax(320px,.85fr) minmax(0,1.25fr);gap:22px;align-items:start;text-align:left}
+.bend-review-form{min-width:0;max-height:58vh;overflow:auto;padding:0 9px 8px 0}
+.bend-review-layout .monthly-scroll{max-height:58vh}.bend-review-layout .deduction-grid{grid-template-columns:1fr}
+.bend-sheet{min-width:0;border:1px solid #d8e7de;border-radius:16px;background:#f8fcfa;padding:15px;text-align:left;color:#365a4b}
+.bend-sheet-head{display:flex;align-items:start;justify-content:space-between;gap:12px;margin-bottom:12px}.bend-sheet-head strong{font-size:15px}.bend-sheet-name{font-size:12px;color:#728a7e;margin-top:5px;overflow-wrap:anywhere}
+.bend-sheet-tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.bend-sheet input[type=search]{flex:1;min-width:140px;border:1px solid #d4e4da;border-radius:9px;background:#fff;padding:10px;font:inherit;font-size:13px;color:#365a4b}
+.bend-sheet label{font-size:12px;display:flex;align-items:center;gap:6px}.bend-sheet input[type=checkbox]{accent-color:#268c72}
+.bend-sheet button{border:1px solid #cddfd4;border-radius:8px;background:#fff;color:#3b6958;padding:7px 10px;font:inherit;font-size:12px;cursor:pointer}.bend-sheet button:disabled{opacity:.4;cursor:default}
+.bend-sheet-scroll{overflow:auto;height:clamp(230px,39vh,420px);border:1px solid #dce8e0;border-radius:10px;background:#fff;overscroll-behavior:contain}
+.bend-sheet table{border-collapse:separate;border-spacing:0;min-width:100%;width:max-content;font-size:12px;table-layout:fixed;font-variant-numeric:tabular-nums}
+.bend-sheet th,.bend-sheet td{min-width:125px;max-width:260px;white-space:pre-wrap;overflow-wrap:anywhere;padding:9px 12px;border-right:1px solid #e4ede7;border-bottom:1px solid #e4ede7;color:#395b4d;line-height:1.6}
+.bend-sheet thead th{position:sticky;top:0;z-index:3;background:#edf5f0;text-align:center;font-weight:600}
+.bend-sheet th.bend-row{position:sticky;left:0;z-index:2;min-width:48px;width:48px;max-width:48px;text-align:center;background:#f0f6f2;color:#779083;padding:9px 6px}
+.bend-sheet thead th.bend-row{z-index:4}.bend-sheet .bend-selected{background:#e0f3e9!important;color:#176e53!important}.bend-sheet .bend-header td{font-weight:600;background:#f1f6fb}.bend-sheet .bend-outside td{color:#87998e}
+.bend-sheet-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;font-size:12px;flex-wrap:wrap}.bend-sheet-pages{display:flex;align-items:center;gap:7px}.bend-sheet-note{font-size:11px;line-height:1.7;margin:10px 0 0;color:#7b9085}
+.bend-sheet :focus-visible{outline:2px solid #69ad94;outline-offset:2px}
+@media(max-width:950px){.bend-review-layout{grid-template-columns:1fr}.bend-review-form{max-height:none;overflow:visible;padding:0}.bend-review-layout .monthly-scroll{max-height:42vh}.bend-sheet-scroll{height:290px}}
+@media(max-width:600px){.bend-sheet{padding:10px}.bend-sheet th,.bend-sheet td{min-width:110px;padding:8px;font-size:11px}.bend-review-layout{gap:14px}.swal2-popup:has(.bend-sheet) .swal2-html-container{padding:12px}}
+</style>
 </head>
 <body class="is-loading is-home home-entry-pending">
   <div class="app-shell" inert aria-busy="true">
@@ -456,7 +477,7 @@ body.login-open{overflow:hidden}
           <div class="section-head"><div><h2>Unggah berkas</h2></div><span class="period-control"><label for="payMonth">Periode gaji</label><select id="payMonth" aria-label="Bulan gaji"></select><input id="payYear" type="number" min="2000" max="2100" value="2026" aria-label="Tahun gaji"></span></div>
           <div class="unit-toolbar"><div class="unit-actions"><button type="button" class="unit-action edit-unit" id="editUnit"><i class="fi fi-rr-edit" aria-hidden="true"></i><span>Edit dinas</span></button><button type="button" class="unit-action delete-unit" id="deleteUnit" hidden><i class="fi fi-rr-trash" aria-hidden="true"></i><span>Hapus dinas</span></button></div><span id="workspaceLabel"></span></div><div class="file-grid">
             <label class="file-card" for="fileBendahara"><span class="file-icon"><i class="fi fi-rr-file-spreadsheet"></i></span><span><b>Data bendahara <sup>WAJIB</sup></b><small></small><em id="nameBendahara">Pilih Excel .xlsx</em></span><input id="fileBendahara" type="file" accept=".xlsx,.xls" data-file="bendahara"></label>
-            <label class="file-card" for="fileTemplate"><span class="file-icon"><i class="fi fi-rr-file-spreadsheet"></i></span><span><b>File kerja <sup>WAJIB</sup></b><small></small><em id="nameTemplate">Pilih Excel .xlsx</em></span><input id="fileTemplate" type="file" accept=".xlsx,.xls" data-file="template"></label>
+            <label class="file-card" for="fileTemplate"><span class="file-icon"><i class="fi fi-rr-file-spreadsheet"></i></span><span><b>File kerja <sup>WAJIB</sup></b><small>Nominal kosong akan diisi dari sumber.</small><em id="nameTemplate">Pilih Excel .xlsx</em></span><input id="fileTemplate" type="file" accept=".xlsx,.xls" data-file="template"></label>
             <label class="file-card" for="fileAdmin"><span class="file-icon"><i class="fi fi-rr-bank"></i></span><span><b>Potongan BPD · Admin</b><small></small><em id="nameAdmin">Pilih Excel .xlsx</em></span><input id="fileAdmin" type="file" accept=".xlsx,.xls" data-file="admin"></label>
             <label class="file-card" for="fileKpr"><span class="file-icon"><i class="fi fi-rr-bank"></i></span><span><b>Potongan Aldi</b><small></small><em id="nameKpr">Pilih Excel .xlsx</em></span><input id="fileKpr" type="file" accept=".xlsx,.xls" data-file="kpr"></label>
             <label class="file-card" for="fileProduktif"><span class="file-icon"><i class="fi fi-rr-bank"></i></span><span><b>Potongan Suryo</b><small></small><em id="nameProduktif">Pilih Excel .xlsx</em></span><input id="fileProduktif" type="file" accept=".xlsx,.xls" data-file="produktif"></label>
@@ -626,7 +647,7 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
       const rows=XLSX.utils.sheet_to_json(sheet,{header:1,range,raw:true,defval:null,blankrows:true,skipHidden:false});
       const title=rows.slice(0,8).flat().filter(v=>typeof v==='string').join(' ').toUpperCase();
       const kind=/\bDBLM\b/.test(title)?9:/\bKUR\b/.test(title)?8:/REK TITIPAN DINAS PEND|DINAS PEND.*SAROLANGUN/.test(title)?4:null;
-      return {name,rows,kind};
+      return {name,rows,kind,worksheet:sheet};
     });
   }
   function legacyBankMap(rows,def) {
@@ -870,10 +891,8 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
     const templateMap=new Map(), byAccount=new Map(), branches=new Map();
     for(let i=4;i<template.rows.length;i++){
       const r=template.rows[i]||[],acct=cleanAccount(r[4]);
-      if(!acct||r[5]==null||r[5]==='')continue;
-      const key=acct+'|'+cents(r[5],'file kerja F'+(i+1));
-      if(!templateMap.has(key))templateMap.set(key,[]);
-      templateMap.get(key).push(r);
+      if(!acct)continue;
+      if(!blankWorkValue(r[5])){const key=acct+'|'+cents(r[5],'file kerja F'+(i+1));if(!templateMap.has(key))templateMap.set(key,[]);templateMap.get(key).push(r);}
       if(!byAccount.has(acct))byAccount.set(acct,[]);byAccount.get(acct).push(r);
       if(typeof r[3]==='string'&&r[3].trim())branches.set(r[3].trim(),(branches.get(r[3].trim())||0)+1);
     }
@@ -1017,6 +1036,8 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
   const activeRows=model=>model.rows.filter(r=>!r.excluded);
   const fileForSlot=slot=>SOURCE_DEFS.find(d=>d.slot===slot)?.file;
   const bankReady=(model,slot)=>model.config.sources.some(d=>d.slot===slot&&(d.status==='absent'||d.status==='file'&&model.filesPresent[d.file]));
+  const blankWorkValue=value=>value==null||typeof value==='string'&&!value.trim();
+  const workAmount=(value,label)=>blankWorkValue(value)?null:cents(value,label);
   function payrollSheetFlexible(workbook,kind,selected){
     const candidates=[];
     for(const source of readBankSheets(workbook)){
@@ -1026,7 +1047,7 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
       for(const {i,h,pots,account,gross} of headers.slice(0,1)){
         const name=h.findIndex(v=>['NAMA','NAMAPEGAWAI','NAMAPENERIMA'].includes(v)),number=h.indexOf('NO'),branch=h.findIndex(v=>['KODECABANG','COCODE','BRANCH'].includes(v)),total=h.findIndex(v=>['JUMLAHPOTONGAN','TOTALPOT','TOTALPOTONGAN'].includes(v)),net=h.findIndex(v=>/^(JUMLAHGAJIBERSIH|GAJIBERSIH)/.test(v));
         if(name<0||branch<0)continue;
-        const start=source.rows.findIndex((r,j)=>j>i&&cleanAccount(r[account])&&typeof r[gross]==='number');if(start<0)continue;
+        const start=source.rows.findIndex((r,j)=>j>i&&cleanAccount(r[account])&&String(r[name]??'').trim()&&!/^(JUMLAH|TOTAL|SUBTOTAL|GRAND TOTAL)(\s|:|$)/i.test(String(r[name]).trim()));if(start<0)continue;
         const field=[h.indexOf('NAMABANK')>=0?h.indexOf('NAMABANK'):(name>0&&h[0]===''?0:name),number,name,branch,account,gross,...pots,total,net];
         const canonical=source.rows.map(r=>field.map(c=>c>=0?r[c]??null:null));
         const labelRow=[...source.rows.slice(i+1,start),...source.rows.slice(0,i).reverse()].find(r=>pots.some(c=>typeof r[c]==='string'&&!/^(REK|IDR|\d)/i.test(r[c])))||[];
@@ -1035,10 +1056,9 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
         pots.forEach((c,j)=>{rows[2][j+6]=labelRow[c]??('POT '+(j+1));rows[3][j+6]=destRow[c]??null;});
         const indexes=[],warnings=[],excluded=[];
         for(let j=start;j<source.rows.length;j++){
-          const r=source.rows[j],a=cleanAccount(r[account]);if(a&&!r[name]&&!r[branch]){excluded.push({row:j+1,name:'Catatan / rekap',account:String(r[account]),amount:0,reason:'Bukan baris pegawai: tidak ada nama dan kode cabang.'});continue;}if(!a){if(r[account]!=null&&r[account]!==''&&typeof r[gross]==='number'&&r[name])warnings.push('File kerja baris '+(j+1)+': rekening tidak valid.');continue;}
-          if(r[gross]==null||r[gross]==='')throw new Error('File kerja baris '+(j+1)+': gaji kotor kosong.');
-          for(const c of [gross,...pots]){if(workbook.Sheets[source.name][XLSX.utils.encode_cell({r:j,c})]?.t==='e')throw new Error('File kerja '+XLSX.utils.encode_cell({r:j,c})+': rumus Excel error. Perbaiki dan simpan ulang berkas.');}
-          cents(r[gross],'File kerja baris '+(j+1));const item=canonical[j];rows.push(item);indexes.push(j+1);
+          const r=source.rows[j],a=cleanAccount(r[account]);if(a&&!r[name]&&!r[branch]){excluded.push({row:j+1,name:'Catatan / rekap',account:String(r[account]),amount:0,reason:'Bukan baris pegawai: tidak ada nama dan kode cabang.'});continue;}if(!a){if(!blankWorkValue(r[account])&&r[name])warnings.push('File kerja baris '+(j+1)+': rekening tidak valid.');continue;}
+          for(const c of [gross,...pots]){const cell=workbook.Sheets[source.name][XLSX.utils.encode_cell({r:j,c})];if(cell?.t==='e')throw new Error('File kerja '+XLSX.utils.encode_cell({r:j,c})+': rumus Excel error. Perbaiki dan simpan ulang berkas.');if(cell?.f&&blankWorkValue(cell.v))throw new Error('File kerja '+XLSX.utils.encode_cell({r:j,c})+': rumus belum dihitung. Hitung dan simpan ulang di Excel, atau kosongkan isinya untuk diisi otomatis.');workAmount(r[c],'File kerja '+XLSX.utils.encode_cell({r:j,c}));}
+          const item=canonical[j];for(let c=5;c<18;c++)if(blankWorkValue(item[c]))item[c]=null;rows.push(item);indexes.push(j+1);
         }
         candidates.push({name:source.name,rows,originalIndexes:indexes,summary:{title:'File kerja',sheet:source.name,first:indexes[0],last:indexes.at(-1),count:indexes.length,warnings,columns:'Rekening '+XLSX.utils.encode_col(account)+' · Gaji '+XLSX.utils.encode_col(gross),excluded}});
       }
@@ -1086,12 +1106,12 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
   }
   function initializeReview(model,template,bendSheet,sourceSheets){
     model.bankDecisions={};model.workDecisions={};model.sourceReview=false;model.reviewPeriod=model.period;model.notes=[];
-    const byAccount=new Map();for(let i=4;i<template.rows.length;i++){const r=template.rows[i],a=cleanAccount(r[4]);if(!a||r[5]==null)continue;if(!byAccount.has(a))byAccount.set(a,[]);byAccount.get(a).push({row:r,index:template.originalIndexes?.[i-4]??i+1});}
+    const byAccount=new Map();for(let i=4;i<template.rows.length;i++){const r=template.rows[i],a=cleanAccount(r[4]);if(!a)continue;if(!byAccount.has(a))byAccount.set(a,[]);byAccount.get(a).push({row:r,index:template.originalIndexes?.[i-4]??i+1});}
     const used=new Set();
     for(const row of model.rows){
       row.overrides={};row.excluded=false;row.exclusionReason='';row.originalGross=row.gross;
-      const candidates=byAccount.get(row.sourceAccount)||[],matched=candidates.find(x=>!used.has(x)&&cents(x.row[5])===row.gross)||candidates.find(x=>!used.has(x));
-      if(matched){used.add(matched);const r=matched.row;row.workOriginal={row:matched.index,name:String(r[2]??''),gross:cents(r[5]),pot:Array.from({length:12},(_,i)=>cents(r[i+6],'File kerja baris '+matched.index+' POT '+(i+1))),total:r[18]==null?null:cents(r[18]),net:r[19]==null?null:cents(r[19])};}
+      const candidates=byAccount.get(row.sourceAccount)||[],matched=candidates.find(x=>!used.has(x)&&!blankWorkValue(x.row[5])&&cents(x.row[5])===row.gross)||candidates.find(x=>!used.has(x));
+      if(matched){used.add(matched);const r=matched.row;row.workOriginal={row:matched.index,name:String(r[2]??''),gross:workAmount(r[5]),pot:Array.from({length:12},(_,i)=>workAmount(r[i+6],'File kerja baris '+matched.index+' POT '+(i+1))),total:workAmount(r[18]),net:workAmount(r[19])};}
       else row.workOriginal=null;
     }
     model.workOnly=[];for(const items of byAccount.values())for(const x of items)if(!used.has(x))model.workOnly.push({name:String(x.row[2]??x.row[0]??''),account:cleanAccount(x.row[4]),row:x.index,gross:cents(x.row[5])});
@@ -1118,7 +1138,7 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
     const row=model.rows.find(r=>r.id===rowId);if(!row||!Number.isInteger(slot)||slot<0||slot>11)throw new Error('Pegawai atau slot tidak valid.');
     if(!String(reason||'').trim())throw new Error('Isi alasan penyesuaian.');
     if(!['zero','work','custom','source','undo'].includes(action))throw new Error('Tindakan tidak valid.');
-    if(action==='work'&&!row.workOriginal)throw new Error('Pegawai tidak ditemukan di file kerja.');
+    if(action==='work'&&row.workOriginal?.pot[slot]==null)throw new Error('Nominal file kerja kosong. Gunakan nominal sumber untuk mengisi otomatis.');
     const n=action==='zero'?0:action==='work'?row.workOriginal.pot[slot]:action==='source'||action==='undo'?row.computedPot[slot]:value;
     if(!Number.isSafeInteger(n)||n<0)throw new Error('Nominal harus valid dan tidak negatif.');
     if(n>0&&model.config.sources.some(d=>d.slot===slot&&d.status==='absent'))throw new Error('Sumber bank ini dikonfirmasi tidak ada. Cocokkan ulang untuk mengaktifkannya.');
@@ -1143,8 +1163,8 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
     for(const row of model.rows){if(row.excluded)continue;const w=row.workOriginal;
       if(!w){out.push({key:row.id+':missing',rowId:row.id,field:'missing',name:row.displayName,account:row.account,slot:null,source:row.gross,work:null,final:row.gross,resolved:!!model.workDecisions[row.id+':missing'],reason:model.workDecisions[row.id+':missing']?.reason,note:'Pegawai belum ada di file kerja'});continue;}
       const fields=[{key:'gross',source:row.originalGross,work:w.gross,final:row.gross},...row.pot.map((v,s)=>({key:'pot:'+s,slot:s,source:row.computedPot[s],work:w.pot[s],final:v})).filter(f=>!BANK_SLOTS.has(f.slot)||bankReady(model,f.slot))];
-      for(const f of fields)if(f.source!==f.work||f.final!==f.work){const key=row.id+':'+f.key,d=model.workDecisions[key],override=row.overrides?.[f.slot];out.push({...f,key,field:f.key,rowId:row.id,name:row.displayName,account:row.account,slot:f.slot??null,resolved:!!(d&&d.value===f.final||override),reason:override?.reason||d?.reason,note:f.key==='gross'?'Gaji kotor berbeda':'Sumber dan file kerja berbeda'});}
-      if(w.total!==null&&w.total!==w.pot.reduce((a,b)=>a+b,0)||w.net!==null&&w.net!==w.gross-w.pot.reduce((a,b)=>a+b,0)){const key=row.id+':formula';out.push({key,field:'formula',rowId:row.id,name:row.displayName,account:row.account,slot:null,source:row.gross-row.pot.reduce((a,b)=>a+b,0),work:w.net,final:row.gross-row.pot.reduce((a,b)=>a+b,0),resolved:!!model.workDecisions[key],reason:model.workDecisions[key]?.reason,note:'Total / gaji bersih file kerja tidak sesuai rincian'});}
+      for(const f of fields)if(f.work!==null&&(f.source!==f.work||f.final!==f.work)){const key=row.id+':'+f.key,d=model.workDecisions[key],override=row.overrides?.[f.slot];out.push({...f,key,field:f.key,rowId:row.id,name:row.displayName,account:row.account,slot:f.slot??null,resolved:!!(d&&d.value===f.final||override),reason:override?.reason||d?.reason,note:f.key==='gross'?'Gaji kotor berbeda':'Sumber dan file kerja berbeda'});}
+      if(w.pot.every(v=>v!==null)&&(w.total!==null&&w.total!==w.pot.reduce((a,b)=>a+b,0)||w.gross!==null&&w.net!==null&&w.net!==w.gross-w.pot.reduce((a,b)=>a+b,0))){const key=row.id+':formula';out.push({key,field:'formula',rowId:row.id,name:row.displayName,account:row.account,slot:null,source:row.gross-row.pot.reduce((a,b)=>a+b,0),work:w.net,final:row.gross-row.pot.reduce((a,b)=>a+b,0),resolved:!!model.workDecisions[key],reason:model.workDecisions[key]?.reason,note:'Total / gaji bersih file kerja tidak sesuai rincian'});}
     }
     return out;
   }
@@ -1575,6 +1595,35 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
     }});
     return response.isConfirmed?response.value:null;
   }
+  function bendSheetMarkup(id){
+    return `<section class="bend-sheet" id="${id}" aria-label="Preview data bendahara"><div class="bend-sheet-head"><div><strong>Preview bendahara</strong><div class="bend-sheet-name" data-sheet-name></div></div></div><div class="bend-sheet-tools"><input type="search" data-sheet-search placeholder="Cari nama, rekening, atau isi sel…" aria-label="Cari di preview bendahara"><label><input type="checkbox" data-sheet-range> Rentang data saja</label></div><div class="bend-sheet-scroll" tabindex="0" role="region" aria-label="Tabel bendahara, geser untuk melihat seluruh kolom" data-sheet-table></div><div class="bend-sheet-foot"><span data-sheet-info aria-live="polite"></span><div class="bend-sheet-pages"><button type="button" data-sheet-prev aria-label="Halaman preview sebelumnya">←</button><span data-sheet-page></span><button type="button" data-sheet-next aria-label="Halaman preview berikutnya">→</button></div></div><p class="bend-sheet-note">Huruf kolom dan nomor baris mengikuti Excel. Hijau: kolom pilihan. Biru: baris judul. Geser tabel untuk melihat kolom lainnya. Preview hanya untuk dibaca.</p></section>`;
+  }
+  function mountBendSheet(id){
+    const root=els(id),get=selector=>root.querySelector(selector),size=25;
+    let source=null,map={},selected=new Set(),page=0,width=0,matches=[],query='',rangeOnly=false;
+    const cellText=(r,c)=>{const cell=source.worksheet?.[XLSX.utils.encode_cell({r,c})];return String(cell?(cell.w??XLSX.utils.format_cell(cell)):(source.rows[r]?.[c]??''));};
+    function filter(){
+      matches=[];
+      for(let r=0;r<source.rows.length;r++){
+        if(rangeOnly&&(r<map.start||r>=map.end))continue;
+        if(query&&!Array.from({length:width},(_,c)=>cellText(r,c).toLocaleLowerCase('id-ID')).some(value=>value.includes(query)))continue;
+        matches.push(r);
+      }
+    }
+    function render(){
+      const total=Math.max(1,Math.ceil(matches.length/size));page=Math.min(page,total-1);
+      const visible=matches.slice(page*size,(page+1)*size),table=get('[data-sheet-table]'),left=table.scrollLeft;
+      get('[data-sheet-name]').textContent=source.name+' · '+width+' kolom · '+source.rows.length.toLocaleString('id-ID')+' baris';
+      table.innerHTML='<table aria-label="Isi sheet bendahara"><thead><tr><th class="bend-row" scope="col">Baris</th>'+Array.from({length:width},(_,c)=>`<th scope="col" data-column="${c}" class="${selected.has(c)?'bend-selected':''}">${XLSX.utils.encode_col(c)}</th>`).join('')+'</tr></thead><tbody>'+(visible.length?visible.map(r=>`<tr class="${r===map.header?'bend-header':r<map.start||r>=map.end?'bend-outside':''}"><th scope="row" class="bend-row">${r+1}</th>${Array.from({length:width},(_,c)=>`<td class="${selected.has(c)?'bend-selected':''}">${esc(cellText(r,c))}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${width+1}">Tidak ada baris yang sesuai pencarian.</td></tr>` )+'</tbody></table>';
+      table.scrollLeft=left;
+      get('[data-sheet-info]').textContent=matches.length?`${page*size+1}–${Math.min((page+1)*size,matches.length)} dari ${matches.length.toLocaleString('id-ID')} baris`:'0 baris';
+      get('[data-sheet-page]').textContent=`${page+1} / ${total}`;get('[data-sheet-prev]').disabled=page===0;get('[data-sheet-next]').disabled=page>=total-1;
+    }
+    get('[data-sheet-search]').addEventListener('input',e=>{query=e.target.value.trim().toLocaleLowerCase('id-ID');page=0;filter();render();});
+    get('[data-sheet-range]').addEventListener('change',e=>{rangeOnly=e.target.checked;page=0;filter();render();});
+    for(const [selector,delta] of [['[data-sheet-prev]',-1],['[data-sheet-next]',1]])get(selector).addEventListener('click',()=>{page+=delta;render();get('[data-sheet-table]').scrollTop=0;});
+    return {update(next,nextMap,columns){const changed=source!==next;source=next;map=nextMap;selected=new Set(columns.filter(c=>Number.isInteger(c)&&c>=0));width=source.rows.reduce((n,r)=>Math.max(n,r.length),0);if(changed){page=0;query='';get('[data-sheet-search]').value='';get('[data-sheet-table]').scrollLeft=0;}filter();render();},highlight(columns,focus){selected=new Set(columns.filter(c=>Number.isInteger(c)&&c>=0));render();if(focus>=0){const cell=get(`[data-column="${focus}"]`),table=get('[data-sheet-table]');if(cell)table.scrollLeft=Math.max(0,cell.offsetLeft-table.querySelector('table').offsetLeft-50);}}};
+  }
   async function askBendaharaColumns(request){
     if(!window.Swal)throw new Error('Pilihan kolom bendahara belum dapat ditampilkan. Buka ulang aplikasi.');
     if(!request.sheets.length)throw new Error('File bendahara tidak memiliki sheet berisi data.');
@@ -1583,10 +1632,10 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
     const coreFields=BEND_FIELDS.filter(f=>f.slot===undefined);
     const fields=coreFields.map(f=>`<label>${esc(f.label)}${f.required?' *':''}<select id="bendCol_${f.key}"></select></label>`).join('');
     const markup=`<p class="mapping-intro">Pilih kolom bendahara. Tanda * wajib diisi.</p><div class="mapping-grid"><label class="mapping-wide">Sheet<select id="bendSheet">${sheetOptions}</select></label><label>Baris judul kolom<input id="bendHeader" type="number" min="0" value="0"><small>Isi 0 jika tidak ada judul kolom.</small></label><label>Data mulai baris<input id="bendStart" type="number" min="1" value="1"></label><label>Data sampai baris<input id="bendEnd" type="number" min="1" value="1"></label>${fields}</div><div class="mapping-preview" id="bendPreview"></div><p class="mapping-footnote">Periksa rentang dan contoh data.</p>`;
-    let current;
+    let current,sheetPreview;
     const selectedMap=()=>({sheet:current.name,header:Number(els('bendHeader').value)-1,start:Number(els('bendStart').value)-1,end:Number(els('bendEnd').value),...Object.fromEntries(BEND_FIELDS.filter(f=>f.slot!==undefined).map(f=>[f.key,-1])),...Object.fromEntries(coreFields.map(f=>[f.key,Number(els('bendCol_'+f.key).value)]))});
     function preview(){
-      const m=selectedMap(),start=Math.max(0,m.start),rows=current.rows.slice(start,Math.min(m.end,start+6));
+      const m=selectedMap();sheetPreview?.update(current,m,coreFields.map(f=>m[f.key]));const start=Math.max(0,m.start),rows=current.rows.slice(start,Math.min(m.end,start+6));
       els('bendPreview').innerHTML='<table><thead><tr><th>Baris</th><th>Nama</th><th>Rekening</th><th>Gaji kotor</th></tr></thead><tbody>'+rows.map((r,i)=>`<tr><td>${start+i+1}</td>${['name','account','gross'].map(k=>`<td>${esc(m[k]<0?'Belum dipilih':r[m[k]]??'—')}</td>`).join('')}</tr>`).join('')+'</tbody></table>';
     }
     function columns(guess){
@@ -1600,8 +1649,8 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
       if(!m){const index=current.rows.findIndex(r=>bendHeaderMap(r).recognized>=2);m={...bendHeaderMap(current.rows[index]||[]).map,header:index,start:index<0?0:index+1,end:current.rows.length};}
       els('bendHeader').value=String(m.header+1);els('bendStart').value=String(m.start+1);els('bendEnd').value=String(m.end);columns(m);
     }
-    const response=await dialog({title:'Kenali kolom bendahara',width:820,html:markup,showCancelButton:true,confirmButtonText:'Gunakan kolom ini',cancelButtonText:'Batal',focusConfirm:false,didOpen:()=>{
-      changeSheet();els('bendSheet').addEventListener('change',changeSheet);
+    const response=await dialog({title:'Kenali kolom bendahara',width:1380,html:`<div class="bend-review-layout"><div class="bend-review-form">${markup}</div>${bendSheetMarkup('bendSourcePreview')}</div>`,showCancelButton:true,confirmButtonText:'Gunakan kolom ini',cancelButtonText:'Batal',focusConfirm:false,didOpen:()=>{
+      sheetPreview=mountBendSheet('bendSourcePreview');changeSheet();els('bendSheet').addEventListener('change',changeSheet);
       els('bendHeader').addEventListener('input',()=>{const index=Number(els('bendHeader').value)-1;if(index>=0){els('bendStart').value=String(index+2);columns(bendHeaderMap(current.rows[index]||[]).map);}else columns();});
       for(const id of ['bendStart','bendEnd'])els(id).addEventListener('input',()=>columns());
       for(const f of coreFields)els('bendCol_'+f.key).addEventListener('change',preview);
@@ -1610,7 +1659,7 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
   }
   async function askMonthlyDeductions(context){
     if(!window.Swal)throw new Error('Konfirmasi potongan belum dapat ditampilkan. Buka ulang aplikasi.');
-    const cols=context.columns,ignoredDraft={};
+    const cols=context.columns,ignoredDraft={};let sheetPreview;
     const sourceOptions=selected=>'<option value="-1"'+(selected===-1?' selected':'')+'>Tidak dipotong bulan ini</option>'+cols.map(c=>`<option value="${c.column}" ${c.column===selected?'selected':''}>${esc(XLSX.utils.encode_col(c.column)+' · '+c.title)}</option>`).join('');
     const cards=context.slots.map((s,i)=>`<article class="deduction-card" data-deduction="${i}"><div class="deduction-heading"><span>POT ${s.slot+1}</span><small id="dedTotal${i}"></small></div>${s.conflict?`<p class="account-warning">${esc(s.conflict)}</p>`:''}<div class="deduction-fields"><label class="deduction-wide">Kolom bendahara<select id="dedColumn${i}">${sourceOptions(s.column)}</select></label><details class="deduction-wide merge-columns"><summary>Gabungkan kolom lain <span id="dedExtraCount${i}"></span></summary><div>${cols.map(c=>`<label><input type="checkbox" id="dedExtra${i}_${c.column}" ${(s.additionalColumns||[]).includes(c.column)?'checked':''}> ${esc(XLSX.utils.encode_col(c.column)+' · '+c.title)}</label>`).join('')}</div></details><label>Nama potongan<input id="dedName${i}" value="${esc(s.name)}" maxlength="80" readonly></label><label>Rekening master<input id="dedAccount${i}" value="${esc(s.destination)}" inputmode="text" autocomplete="off" readonly></label><label>Jenis potongan<select id="dedKind${i}"><option value="other" ${s.kind==='other'?'selected':''}>Potongan lainnya</option><option value="bpjs" ${s.kind==='bpjs'?'selected':''}>BPJS</option></select></label><label>Pembulatan<select id="dedRound${i}"><option value="none" ${s.rounding==='none'?'selected':''}>Tanpa pembulatan</option><option value="rupiah" ${s.rounding==='rupiah'?'selected':''}>BPJS ke rupiah penuh</option></select></label></div><label class="deduction-absent" id="dedMismatchLabel${i}" hidden><input id="dedMismatch${i}" type="checkbox"> Rekening sumber berbeda; saya pastikan tujuan yang benar adalah rekening master di atas.</label><label class="deduction-absent" id="dedAbsentLabel${i}"><input id="dedAbsent${i}" type="checkbox"> Saya pastikan potongan ini tidak ada bulan ini.</label></article>`).join('');
     const html=`<p class="mapping-intro">Periode: <b>${esc(context.period?MONTHS[context.period.month]+' '+context.period.year:'sesuai data yang dipilih')}</b>. Periksa kolom dan rekening tujuan.</p><div class="monthly-scroll"><div class="deduction-grid">${cards}</div><div id="dedUnmapped"></div><div class="deduction-check" id="dedCheck"></div><p class="mapping-footnote">Nama dan rekening mengikuti file kerja. Beberapa kolom dapat dijumlahkan ke satu POT. Centang pada “Gabungkan kolom lain”. Kolom sumber hanya boleh dipakai sekali.</p></div><label class="deduction-confirm"><input type="checkbox" id="dedConfirm"> Potongan, slot POT, rekening tujuan, dan pembulatan sudah diperiksa.</label>`;
@@ -1622,7 +1671,7 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
       for(const c of remaining)for(const id of ['dedIgnore','dedReason'])els(id+c.column).addEventListener('input',()=>{els('dedConfirm').checked=false;rememberIgnored();});
     }
     function refresh(){
-      const slots=readSlots();slots.forEach((s,i)=>{
+      const slots=readSlots();sheetPreview?.highlight(slots.flatMap(deductionColumns));slots.forEach((s,i)=>{
         const selected=deductionColumns(s),items=cols.filter(c=>selected.includes(c.column));els('dedTotal'+i).textContent=items.some(c=>c.invalid)?'Periksa isi kolom':money(items.reduce((n,c)=>n+c.total,0));
         els('dedExtraCount'+i).textContent=s.additionalColumns.length?'('+s.additionalColumns.length+' dipilih)':'';
         cols.forEach(c=>{els('dedExtra'+i+'_'+c.column).disabled=s.column<0||c.column===s.column;});
@@ -1634,9 +1683,12 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
       try{const preview=monthlyPreview(context,{slots:readSlots()}),raw=preview.totals.reduce((n,t)=>n+t.source,0),final=preview.totals.reduce((n,t)=>n+t.result,0);els('dedCheck').textContent=`${context.entries.length.toLocaleString('id-ID')} baris pegawai · Total sumber ${money(raw)} · Setelah pembulatan ${money(final)}. ${preview.discrepancies?preview.discrepancies.toLocaleString('id-ID')+' baris belum cocok dengan jumlah potongan / gaji bersih bendahara. Periksa pemetaan; ekspor CSV akan ditahan jika masih berbeda.':'Rincian potongan dan gaji bersih sesuai bendahara.'}`;els('dedCheck').classList.toggle('has-warning',!!preview.discrepancies);}
       catch{els('dedCheck').textContent='Ada kolom berisi nilai yang belum dapat dibaca sebagai nominal. Periksa pilihan kolom potongan.';els('dedCheck').classList.add('has-warning');}
     }
-    const response=await dialog({title:'Konfirmasi potongan bulan ini',width:1040,html,showCancelButton:true,confirmButtonText:'Konfirmasi & cocokkan',cancelButtonText:'Batal',focusConfirm:false,didOpen:()=>{
-      refresh();showUnmapped();
+    const response=await dialog({title:'Konfirmasi potongan bulan ini',width:1380,html:`<div class="bend-review-layout"><div>${html}</div>${bendSheetMarkup('dedSourcePreview')}</div>`,showCancelButton:true,confirmButtonText:'Konfirmasi & cocokkan',cancelButtonText:'Batal',focusConfirm:false,didOpen:()=>{
+      sheetPreview=mountBendSheet('dedSourcePreview');sheetPreview.update(context.source,context.source.map,[]);refresh();showUnmapped();
       context.slots.forEach((s,i)=>{
+        const card=els('dedColumn'+i).closest('.deduction-card');
+        const highlight=()=>{const columns=deductionColumns(readSlots()[i]);sheetPreview.highlight(columns,columns[0]);};
+        card.addEventListener('focusin',highlight);card.addEventListener('change',highlight);
         els('dedColumn'+i).addEventListener('change',()=>{const main=Number(els('dedColumn'+i).value);cols.forEach(c=>{if(main<0||c.column===main)els('dedExtra'+i+'_'+c.column).checked=false;});const c=cols.find(x=>x.column===Number(els('dedColumn'+i).value));els('dedAbsent'+i).checked=false;if(c){els('dedMismatch'+i).checked=false;els('dedKind'+i).value=c.role==='bpjs'?'bpjs':'other';els('dedRound'+i).value=c.role==='bpjs'?'rupiah':'none';}els('dedConfirm').checked=false;refresh();showUnmapped();});
         cols.forEach(c=>els('dedExtra'+i+'_'+c.column).addEventListener('change',()=>{els('dedConfirm').checked=false;els('dedMismatch'+i).checked=false;els('dedAbsent'+i).checked=false;const selected=deductionColumns(readSlots()[i]);if(selected.some(column=>cols.find(c=>c.column===column)?.role!=='bpjs')){els('dedKind'+i).value='other';els('dedRound'+i).value='none';}refresh();showUnmapped();}));
         for(const prefix of ['dedName','dedAccount','dedKind','dedRound','dedAbsent','dedMismatch'])els(prefix+i).addEventListener('change',()=>{els('dedConfirm').checked=false;refresh();});
@@ -1801,7 +1853,7 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
   async function adjustEmployee(id,selectedSlot=0){const m=state.model,row=m?.rows[id];if(!row)return;
     const options=m.slotNames.map((s,i)=>`<option value="${i}" ${i===selectedSlot?'selected':''}>POT ${i+1} · ${esc(s)}</option>`).join('');
     const html=`<p class="edit-head"><b>${esc(row.displayName)}</b> · ${esc(row.account)}<br>Perubahan hanya berlaku pada periode ini.</p><div class="edit-grid"><label class="full">Potongan<select id="adjustSlot">${options}</select></label><div class="full comparison-values" id="adjustValues"></div><label class="full">Tindakan<select id="adjustAction"><option value="zero">Tidak dipotong bulan ini</option><option value="custom">Ubah / tambah nominal</option><option value="work" ${row.workOriginal?'':'disabled'}>Gunakan nominal file kerja</option><option value="source">Gunakan nominal sumber</option><option value="undo">Batalkan penyesuaian dan tinjauan</option></select></label><label class="full" id="adjustAmountLabel" hidden>Nominal akhir (Rp)<input id="adjustAmount" inputmode="decimal"></label><label class="full">Alasan / arahan<input id="adjustReason" placeholder="Contoh: sesuai arahan Aldi, tunda bulan ini"></label></div>`;
-    const response=await dialog({title:'Penyesuaian bulan ini',width:680,html,showCancelButton:true,confirmButtonText:'Terapkan',cancelButtonText:'Batal',didOpen:()=>{const update=()=>{const slot=Number(els('adjustSlot').value);els('adjustValues').innerHTML=`<span>Sumber<b>${esc(money(row.computedPot[slot]))}</b></span><span>File kerja asli<b>${row.workOriginal?esc(money(row.workOriginal.pot[slot])):'Tidak ada'}</b></span><span>Hasil saat ini<b>${esc(money(row.pot[slot]))}</b></span>`;els('adjustAmount').value=(row.pot[slot]/100).toFixed(2);els('adjustReason').value=row.overrides[slot]?.reason||'';};update();els('adjustSlot').addEventListener('change',update);els('adjustAction').addEventListener('change',()=>{els('adjustAmountLabel').hidden=els('adjustAction').value!=='custom';});},preConfirm:()=>{try{const slot=Number(els('adjustSlot').value),action=els('adjustAction').value,reason=els('adjustReason').value.trim(),value=cents(els('adjustAmount').value);if(!reason)throw new Error('Isi alasan penyesuaian.');if(value<0)throw new Error('Nominal tidak boleh negatif.');if(action==='custom'&&!els('adjustAmount').value.trim())throw new Error('Isi nominal akhir.');return{slot,action,reason,value};}catch(e){Swal.showValidationMessage(e.message);return false;}}});
+    const response=await dialog({title:'Penyesuaian bulan ini',width:680,html,showCancelButton:true,confirmButtonText:'Terapkan',cancelButtonText:'Batal',didOpen:()=>{const update=()=>{const slot=Number(els('adjustSlot').value);els('adjustValues').innerHTML=`<span>Sumber<b>${esc(money(row.computedPot[slot]))}</b></span><span>File kerja asli<b>${row.workOriginal?.pot[slot]!=null?esc(money(row.workOriginal.pot[slot])):'Kosong · isi dari sumber'}</b></span><span>Hasil saat ini<b>${esc(money(row.pot[slot]))}</b></span>`;els('adjustAction').querySelector('option[value="work"]').disabled=row.workOriginal?.pot[slot]==null;els('adjustAmount').value=(row.pot[slot]/100).toFixed(2);els('adjustReason').value=row.overrides[slot]?.reason||'';};update();els('adjustSlot').addEventListener('change',update);els('adjustAction').addEventListener('change',()=>{els('adjustAmountLabel').hidden=els('adjustAction').value!=='custom';});},preConfirm:()=>{try{const slot=Number(els('adjustSlot').value),action=els('adjustAction').value,reason=els('adjustReason').value.trim(),value=cents(els('adjustAmount').value);if(!reason)throw new Error('Isi alasan penyesuaian.');if(value<0)throw new Error('Nominal tidak boleh negatif.');if(action==='custom'&&!els('adjustAmount').value.trim())throw new Error('Isi nominal akhir.');return{slot,action,reason,value};}catch(e){Swal.showValidationMessage(e.message);return false;}}});
     if(response.isConfirmed){try{const v=response.value;adjustPot(m,id,v.slot,v.action,v.value,v.reason);afterChange();toast('Penyesuaian disimpan untuk bulan ini.');}catch(e){toast(e.message,'error');}}
   }
   async function reviewWork(key){const m=state.model,c=workDifferences(m).find(x=>x.key===key);if(!c)return;if(c.slot!==null){await adjustEmployee(c.rowId,c.slot);return;}
