@@ -1879,7 +1879,24 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
   }
 
   const download=(filename,content,type)=>{const blob=new Blob([content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);};
-  function saveWork(){if(!state.model)return;try{const name=`FileKerja_${currentUnit.short}_${fileCode()}.xlsx`,wb=workbookForModel(state.model);XLSX.writeFile(wb,name,{compression:true,cellStyles:true});toast('File kerja Excel terunduh.');}catch(e){console.error(e);toast(`Gagal membuat Excel: ${e.message}`,'error');}}
+  function workExcelBytes(wb){
+    const bytes=new Uint8Array(XLSX.write(wb,{bookType:'xlsx',type:'array',compression:true,cellStyles:true}));
+    const archive=XLSX.CFB.read(bytes,{type:'array'});
+    const index=archive.FullPaths.findIndex(path=>path.endsWith('/xl/worksheets/sheet1.xml'));
+    if(index<0)throw new Error('Sheet file kerja tidak ditemukan saat mengatur freeze panes.');
+    const entry=archive.FileIndex[index],xml=new TextDecoder().decode(new Uint8Array(entry.content));
+    const pane='<pane ySplit="4" topLeftCell="A5" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A5" sqref="A5"/>';
+    let changed=false;
+    const updated=xml.replace(/(<sheetView\b[^>]*?)(?:\/>|>([\s\S]*?)<\/sheetView>)/,(match,open,body='')=>{
+      changed=true;
+      const rest=body.replace(/<(?:pane|selection)\b[^>]*(?:\/>|>[\s\S]*?<\/(?:pane|selection)>)/g,'');
+      return open+'>'+pane+rest+'</sheetView>';
+    });
+    if(!changed)throw new Error('Tampilan sheet file kerja belum dapat dikunci.');
+    entry.content=new TextEncoder().encode(updated);entry.size=entry.content.length;
+    return XLSX.CFB.write(archive,{type:'array',fileType:'zip',compression:true});
+  }
+  function saveWork(){if(!state.model)return;try{const name=`FileKerja_${currentUnit.short}_${fileCode()}.xlsx`,wb=workbookForModel(state.model);download(name,workExcelBytes(wb),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');toast('File kerja Excel terunduh.');}catch(e){console.error(e);toast(`Gagal membuat Excel: ${e.message}`,'error');}}
   function saveIssues(){
     if(!state.model||!state.result){toast('Jalankan pencocokan sebelum mengunduh selisih.','warning');return;}
     try{const p=state.model.period||period(),code=CODES[p.month]+String(p.year).slice(-2);XLSX.writeFile(workbookForIssues(state.model,period()),`Selisih_${currentUnit.short}_${code}.xlsx`,{compression:true,cellStyles:true});toast('Excel seluruh temuan selisih terunduh.');}
