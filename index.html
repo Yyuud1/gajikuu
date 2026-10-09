@@ -1531,7 +1531,11 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
   }
 
   const state={files:{},model:null,result:null,tab:'input',nav:'disdik',filter:'all',issuePage:0,workerPage:0,issueQuery:'',workerQuery:''};
-  const Toast=()=>window.Swal?.mixin({toast:true,position:'top-end',showConfirmButton:false,timer:2700,timerProgressBar:true,background:'#ffffff',color:'#31594b'});
+  const Toast=()=>window.Swal?.mixin({toast:true,position:'top-end',showConfirmButton:false,timer:2700,timerProgressBar:true,background:'#ffffff',color:'#31594b',didOpen:popup=>{
+    popup.addEventListener('mouseenter',()=>Swal.stopTimer());
+    popup.addEventListener('mouseleave',()=>Swal.resumeTimer());
+    if(popup.matches(':hover'))Swal.stopTimer();
+  }});
   const toast=(message,icon='success')=>{if(window.Swal)Toast().fire({icon,title:message,iconColor:icon==='error'?'#ae5b5d':icon==='warning'?'#b28756':'#5ba990'});else alert(message);};
   const dialog=opts=>window.Swal ? Swal.fire(opts) : Promise.resolve({isConfirmed:confirm(opts.text||opts.title||'Lanjut?')});
   const refreshLoadingDate=()=>{
@@ -1564,10 +1568,10 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
     const initial=request.candidates[0],suggested=initial?.name??request.sheets[0].name;
     const sourceOptions=request.sheets.map((s,i)=>`<option value="${i}" ${s.name===suggested?'selected':''}>${esc(s.name)}</option>`).join('');
     const markup=`<p class="mapping-intro">Cocokkan kolom ${esc(request.title)}.</p><div class="mapping-grid"><label class="mapping-wide">Sheet<select id="mapSheet">${sourceOptions}</select></label><label>Baris judul kolom<input id="mapHeader" type="number" min="0" value="0"><small>Isi 0 jika tidak ada judul kolom.</small></label><label>Data mulai baris<input id="mapStart" type="number" min="1" value="1"></label><label>Data sampai baris<input id="mapEnd" type="number" min="1" value="1"></label><label>Kolom nama<select id="mapName"></select></label><label>Kolom rekening gaji<select id="mapAccount"></select></label><label>Kolom angsuran / potongan<select id="mapAmount"></select></label><label>Kolom dinas (opsional)<select id="mapDinas"></select></label></div><label class="mapping-filter"><input id="mapFilter" type="checkbox"> Ambil hanya baris dinas ini dari kolom dinas</label><div class="mapping-preview" id="mapPreview"></div><p class="mapping-footnote">Pilih rekening penerima gaji, bukan nomor pinjaman, NIP, atau NIK.</p>`;
-    let current,currentCandidate;
+    let current,currentCandidate,sheetPreview;
     const selectedMap=()=>{const value={sheet:current.name,name:Number(els('mapName').value),account:Number(els('mapAccount').value),amount:Number(els('mapAmount').value),label:Number(els('mapDinas').value),header:Number(els('mapHeader').value)-1,start:Number(els('mapStart').value)-1,end:Number(els('mapEnd').value),filterDinas:els('mapFilter').checked,mode:'generic'};const preset=currentCandidate?.map;if(preset?.mode==='legacy'&&['name','account','amount','label','start','end','filterDinas'].every(k=>value[k]===preset[k])){value.mode='legacy';value.loan=preset.loan;}return value;};
     function preview(){
-      const m=selectedMap();const rows=current.rows.slice(Math.max(0,m.start),Math.min(m.end,Math.max(0,m.start)+6));
+      const m=selectedMap();sheetPreview?.update(current,m,[m.name,m.account,m.amount,m.label]);const rows=current.rows.slice(Math.max(0,m.start),Math.min(m.end,Math.max(0,m.start)+6));
       els('mapPreview').innerHTML='<table><thead><tr><th>Baris</th><th>Nama</th><th>Rekening</th><th>Nominal</th></tr></thead><tbody>'+rows.map((r,i)=>`<tr><td>${m.start+i+1}</td><td>${esc(m.name<0?'Belum dipilih':r[m.name]??'—')}</td><td>${esc(m.account<0?'Belum dipilih':r[m.account]??'—')}</td><td>${esc(m.amount<0?'Belum dipilih':r[m.amount]??'—')}</td></tr>`).join('')+'</tbody></table>';
     }
     function columns(guess){
@@ -1584,8 +1588,8 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
       els('mapHeader').value=String((m.header??-1)+1);els('mapStart').value=String(m.start+1);els('mapEnd').value=String(m.end);els('mapFilter').checked=!!m.filterDinas;
       columns(m);
     }
-    const response=await dialog({title:'Kenali kolom '+request.title,width:820,html:markup,showCancelButton:true,confirmButtonText:'Gunakan kolom ini',cancelButtonText:'Batal',focusConfirm:false,didOpen:()=>{
-      changeSheet();els('mapSheet').addEventListener('change',changeSheet);
+    const response=await dialog({title:'Kenali kolom '+request.title,width:1380,html:`<div class="bend-review-layout"><div class="bend-review-form">${markup}</div>${bendSheetMarkup('bankSourcePreview',request.title)}</div>`,showCancelButton:true,confirmButtonText:'Gunakan kolom ini',cancelButtonText:'Batal',focusConfirm:false,didOpen:()=>{
+      sheetPreview=mountBendSheet('bankSourcePreview');changeSheet();els('mapSheet').addEventListener('change',changeSheet);
       els('mapHeader').addEventListener('input',()=>{const index=Number(els('mapHeader').value)-1;if(index>=0){els('mapStart').value=String(index+2);columns(bankHeaderMap(current.rows[index]||[]).map);}else columns();});
       for(const id of ['mapStart','mapEnd'])els(id).addEventListener('input',()=>columns());
       for(const id of ['mapName','mapAccount','mapAmount','mapDinas','mapFilter'])els(id).addEventListener('change',preview);
@@ -1595,8 +1599,8 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
     }});
     return response.isConfirmed?response.value:null;
   }
-  function bendSheetMarkup(id){
-    return `<section class="bend-sheet" id="${id}" aria-label="Preview data bendahara"><div class="bend-sheet-head"><div><strong>Preview bendahara</strong><div class="bend-sheet-name" data-sheet-name></div></div></div><div class="bend-sheet-tools"><input type="search" data-sheet-search placeholder="Cari nama, rekening, atau isi sel…" aria-label="Cari di preview bendahara"><label><input type="checkbox" data-sheet-range> Rentang data saja</label></div><div class="bend-sheet-scroll" tabindex="0" role="region" aria-label="Tabel bendahara, geser untuk melihat seluruh kolom" data-sheet-table></div><div class="bend-sheet-foot"><span data-sheet-info aria-live="polite"></span><div class="bend-sheet-pages"><button type="button" data-sheet-prev aria-label="Halaman preview sebelumnya">←</button><span data-sheet-page></span><button type="button" data-sheet-next aria-label="Halaman preview berikutnya">→</button></div></div><p class="bend-sheet-note">Huruf kolom dan nomor baris mengikuti Excel. Hijau: kolom pilihan. Biru: baris judul. Geser tabel untuk melihat kolom lainnya. Preview hanya untuk dibaca.</p></section>`;
+  function bendSheetMarkup(id,label='bendahara'){
+    return `<section class="bend-sheet" id="${id}" aria-label="Preview data ${esc(label)}"><div class="bend-sheet-head"><div><strong>Preview ${esc(label)}</strong><div class="bend-sheet-name" data-sheet-name></div></div></div><div class="bend-sheet-tools"><input type="search" data-sheet-search placeholder="Cari nama, rekening, atau isi sel…" aria-label="Cari di preview ${esc(label)}"><label><input type="checkbox" data-sheet-range> Rentang data saja</label></div><div class="bend-sheet-scroll" tabindex="0" role="region" aria-label="Tabel ${esc(label)}, geser untuk melihat seluruh kolom" data-sheet-table></div><div class="bend-sheet-foot"><span data-sheet-info aria-live="polite"></span><div class="bend-sheet-pages"><button type="button" data-sheet-prev aria-label="Halaman preview sebelumnya">←</button><span data-sheet-page></span><button type="button" data-sheet-next aria-label="Halaman preview berikutnya">→</button></div></div><p class="bend-sheet-note">Huruf kolom dan nomor baris mengikuti Excel. Hijau: kolom pilihan. Biru: baris judul. Geser tabel untuk melihat kolom lainnya. Preview hanya untuk dibaca.</p></section>`;
   }
   function mountBendSheet(id){
     const root=els(id),get=selector=>root.querySelector(selector),size=25;
@@ -1614,7 +1618,7 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
       const total=Math.max(1,Math.ceil(matches.length/size));page=Math.min(page,total-1);
       const visible=matches.slice(page*size,(page+1)*size),table=get('[data-sheet-table]'),left=table.scrollLeft;
       get('[data-sheet-name]').textContent=source.name+' · '+width+' kolom · '+source.rows.length.toLocaleString('id-ID')+' baris';
-      table.innerHTML='<table aria-label="Isi sheet bendahara"><thead><tr><th class="bend-row" scope="col">Baris</th>'+Array.from({length:width},(_,c)=>`<th scope="col" data-column="${c}" class="${selected.has(c)?'bend-selected':''}">${XLSX.utils.encode_col(c)}</th>`).join('')+'</tr></thead><tbody>'+(visible.length?visible.map(r=>`<tr class="${r===map.header?'bend-header':r<map.start||r>=map.end?'bend-outside':''}"><th scope="row" class="bend-row">${r+1}</th>${Array.from({length:width},(_,c)=>`<td class="${selected.has(c)?'bend-selected':''}">${esc(cellText(r,c))}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${width+1}">Tidak ada baris yang sesuai pencarian.</td></tr>` )+'</tbody></table>';
+      table.innerHTML='<table aria-label="Isi sheet sumber"><thead><tr><th class="bend-row" scope="col">Baris</th>'+Array.from({length:width},(_,c)=>`<th scope="col" data-column="${c}" class="${selected.has(c)?'bend-selected':''}">${XLSX.utils.encode_col(c)}</th>`).join('')+'</tr></thead><tbody>'+(visible.length?visible.map(r=>`<tr class="${r===map.header?'bend-header':r<map.start||r>=map.end?'bend-outside':''}"><th scope="row" class="bend-row">${r+1}</th>${Array.from({length:width},(_,c)=>`<td class="${selected.has(c)?'bend-selected':''}">${esc(cellText(r,c))}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${width+1}">Tidak ada baris yang sesuai pencarian.</td></tr>` )+'</tbody></table>';
       table.scrollLeft=left;
       get('[data-sheet-info]').textContent=matches.length?`${page*size+1}–${Math.min((page+1)*size,matches.length)} dari ${matches.length.toLocaleString('id-ID')} baris`:'0 baris';
       get('[data-sheet-page]').textContent=`${page+1} / ${total}`;get('[data-sheet-prev]').disabled=page===0;get('[data-sheet-next]').disabled=page>=total-1;
